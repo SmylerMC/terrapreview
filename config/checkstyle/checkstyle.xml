@@ -8,5 +8,8 @@
         <module name="MissingJavadocMethod">
             <property name="scope" value="public"/>
         </module>
+        <module name="JavadocMethod">
+            <property name="accessModifiers" value="public"/>
+        </module>
     </module>
 </module>
