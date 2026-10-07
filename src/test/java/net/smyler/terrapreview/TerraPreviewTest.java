@@ -1,4 +1,4 @@
-package io.github.smylermc.terrapreview;
+package net.smyler.terrapreview;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 

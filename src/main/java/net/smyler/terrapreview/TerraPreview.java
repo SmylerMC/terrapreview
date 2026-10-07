@@ -1,4 +1,4 @@
-package io.github.smylermc.terrapreview;
+package net.smyler.terrapreview;
 
 public final class TerraPreview {
 
