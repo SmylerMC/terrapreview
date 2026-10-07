@@ -3,7 +3,7 @@ plugins {
     application
 }
 
-group = "io.github.smylermc"
+group = "net.smyler"
 version = "0.1.0-SNAPSHOT"
 
 repositories {
@@ -23,7 +23,7 @@ java {
 }
 
 application {
-    mainClass = "io.github.smylermc.terrapreview.TerraPreview"
+    mainClass = "net.smyler.terrapreview.TerraPreview"
 }
 
 tasks.test {
