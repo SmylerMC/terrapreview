@@ -11,5 +11,7 @@
         <module name="JavadocMethod">
             <property name="accessModifiers" value="public"/>
         </module>
+        <module name="UnusedImports"/>
+        <module name="UnusedLocalVariable"/>
     </module>
 </module>
