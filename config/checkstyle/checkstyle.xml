@@ -21,27 +21,65 @@
         <module name="OneTopLevelClass"/>
 
         <!-- Coding -->
+        <module name="AvoidDoubleBraceInitialization"/>
+        <module name="AvoidNoArgumentSuperConstructorCall"/>
+        <module name="ConstructorsDeclarationGrouping"/>
+        <module name="CovariantEquals"/>
         <module name="DefaultComesLast"/>
         <module name="EmptyStatement"/>
         <module name="EqualsAvoidNull"/>
         <module name="EqualsHashCode"/>
+        <module name="ExplicitInitialization"/>
         <module name="FallThrough"/>
         <module name="IllegalCatch"/>
+        <module name="IllegalInstantiation">
+            <property name="classes" value="java.lang.Boolean, java.lang.Byte, java.lang.Short, java.lang.Character, java.lang.Integer, java.lang.Long, java.lang.Float, java.lang.Double"/>
+        </module>
         <module name="IllegalThrows"/>
         <module name="InnerAssignment"/>
         <module name="MagicNumber">
             <property name="ignoreNumbers" value="-1, 0, 1, 2"/>
         </module>
         <module name="MissingSwitchDefault"/>
+        <module name="ModifiedControlVariable"/>
+        <module name="MultipleStringLiterals">
+            <property name="allowedDuplicates" value="2"/>
+        </module>
         <module name="MultipleVariableDeclarations"/>
+        <module name="NestedForDepth">
+            <property name="max" value="2"/>
+        </module>
+        <module name="NestedIfDepth">
+            <property name="max" value="2"/>
+        </module>
+        <module name="NestedTryDepth">
+            <property name="max" value="2"/>
+        </module>
         <module name="NoClone"/>
         <module name="NoFinalizer"/>
         <module name="OneStatementPerLine"/>
+        <module name="OverloadMethodsDeclarationOrder"/>
+        <module name="PackageDeclaration"/>
+        <module name="PatternVariableAssignment"/>
         <module name="SimplifyBooleanExpression"/>
         <module name="SimplifyBooleanReturn"/>
         <module name="StringLiteralEquality"/>
         <module name="SuperClone"/>
         <module name="SuperFinalize"/>
+        <module name="UnnecessaryNullCheckWithInstanceOf"/>
+        <module name="UnnecessaryPermitsClause"/>
+        <module name="UnnecessarySemicolonAfterOuterTypeDeclaration"/>
+        <module name="UnnecessarySemicolonAfterTypeMemberDeclaration"/>
+        <module name="UnnecessarySemicolonInEnumeration"/>
+        <module name="UnnecessarySemicolonInTryWithResources"/>
+        <module name="UnnecessaryTypeArgumentsWithRecordPattern"/>
+        <module name="UnusedCatchParameterShouldBeUnnamed"/>
+        <module name="UnusedLambdaParameterShouldBeUnnamed"/>
+        <module name="UnusedPrivateField"/>
+        <module name="UnusedTryResourceShouldBeUnnamed"/>
+        <module name="UseEnhancedSwitch"/>
+        <module name="VariableDeclarationUsageDistance"/>
+        <module name="WhenShouldBeUsed"/>
 
         <!-- Imports -->
         <module name="AvoidStarImport"/>
