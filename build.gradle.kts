@@ -1,6 +1,7 @@
 plugins {
     java
     application
+    checkstyle
 
     id("com.diffplug.spotless") version "8.10.3"
 }
@@ -16,6 +17,8 @@ dependencies {
     testImplementation(platform("org.junit:junit-bom:6.1.3"))
     testImplementation("org.junit.jupiter:junit-jupiter")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+
+    checkstyle("com.puppycrawl.tools:checkstyle:14.3.0")
 }
 
 java {
