@@ -1,6 +1,8 @@
 plugins {
     java
     application
+
+    id("com.diffplug.spotless") version "8.10.3"
 }
 
 group = "net.smyler"
@@ -24,6 +26,12 @@ java {
 
 application {
     mainClass = "net.smyler.terrapreview.TerraPreview"
+}
+
+spotless {
+    java {
+        palantirJavaFormat()
+    }
 }
 
 tasks.test {
