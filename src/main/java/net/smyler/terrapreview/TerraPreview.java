@@ -5,6 +5,8 @@ package net.smyler.terrapreview;
  */
 public final class TerraPreview {
 
+    private TerraPreview() {}
+
     /**
      * The greeting message printed by this application.
      */
