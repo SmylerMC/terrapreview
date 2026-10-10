@@ -21,9 +21,9 @@ import javax.imageio.ImageIO;
  */
 public final class PreviewWebServer {
     /**
-     * The port the web server listens on.
+     * The default port the web server listens on.
      */
-    public static final int PORT = 8080;
+    public static final int DEFAULT_PORT = 8080;
 
     /**
      * The lowest leaflet zoom level, two unzoom levels below the native chunk pixel size.
@@ -50,6 +50,8 @@ public final class PreviewWebServer {
 
     private final double[] centerChunk;
 
+    private final int port;
+
     private final AtomicLong version = new AtomicLong();
     private final Object versionChangeMonitor = new Object();
     private volatile boolean running;
@@ -61,7 +63,7 @@ public final class PreviewWebServer {
      * @param preview the preview to serve
      */
     public PreviewWebServer(Preview preview) {
-        this(preview, new double[] {0, 0});
+        this(preview, new double[] {0, 0}, DEFAULT_PORT);
     }
 
     /**
@@ -71,8 +73,29 @@ public final class PreviewWebServer {
      * @param centerChunk the x and z coordinates of the chunk to center the map on
      */
     public PreviewWebServer(Preview preview, double[] centerChunk) {
+        this(preview, centerChunk, DEFAULT_PORT);
+    }
+
+    /**
+     * Creates a new web server serving the given preview, initially centered on the given chunk, listening on the given port.
+     *
+     * @param preview the preview to serve
+     * @param centerChunk the x and z coordinates of the chunk to center the map on
+     * @param port the port to listen on
+     */
+    public PreviewWebServer(Preview preview, double[] centerChunk, int port) {
         this.preview = preview;
         this.centerChunk = centerChunk.clone();
+        this.port = port;
+    }
+
+    /**
+     * Returns the port the web server listens on.
+     *
+     * @return the listening port
+     */
+    public int port() {
+        return this.port;
     }
 
     /**
@@ -98,13 +121,13 @@ public final class PreviewWebServer {
     }
 
     /**
-     * Starts the web server on {@link #PORT}.
+     * Starts the web server on the configured port.
      *
      * @throws IOException if the server cannot be started
      */
     public void start() throws IOException {
         this.running = true;
-        this.server = HttpServer.create(new InetSocketAddress(PORT), 0);
+        this.server = HttpServer.create(new InetSocketAddress(this.port), 0);
         this.server.setExecutor(Executors.newCachedThreadPool(
                 Thread.ofPlatform().daemon().name("terrapreview-server-").factory()));
         this.server.createContext("/events", this::serveEvents);

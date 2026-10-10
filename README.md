@@ -56,6 +56,18 @@ The following environment variables are supported:
 ./gradlew run
 ```
 
+The web UI is served on `http://localhost:8080`.
+
+### Command-line options
+
+The listen port of the web server can be changed with the `--port` (or `-p`) flag:
+
+```sh
+./gradlew run --args="--port 9090"
+```
+
+The flag also accepts the `--port=9090` form. The port must be a number between 1 and 65535; the default is 8080.
+
 ## Live-reloaded configuration
 
 Terraminusminus resolves external configuration from a config root directory (default: `./terraminusminus/config`, configurable at runtime via `Disk#setConfigRoot`). Terrapreview watches this directory and rebuilds the generator, then live-reloads the web UI, whenever any of the following files change:

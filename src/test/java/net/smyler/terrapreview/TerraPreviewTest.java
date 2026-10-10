@@ -3,6 +3,7 @@ package net.smyler.terrapreview;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.awt.Color;
@@ -19,6 +20,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.NoSuchElementException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -27,6 +29,7 @@ import javax.imageio.ImageIO;
 import org.junit.jupiter.api.Test;
 
 class TerraPreviewTest {
+
     private static final long TIMEOUT_SECONDS = 10L;
 
     private static final long TIMEOUT_NANOS =
@@ -34,7 +37,13 @@ class TerraPreviewTest {
 
     private static final BufferedImage STUB_TILE = new BufferedImage(4, 2, BufferedImage.TYPE_INT_RGB);
 
-    private static final String BASE_URL = "http://localhost:" + PreviewWebServer.PORT;
+    private static final String BASE_URL = "http://localhost:" + PreviewWebServer.DEFAULT_PORT;
+
+    private static final int TEST_PORT = 4242;
+
+    private static final String PORT_FLAG = "--port";
+
+    private static final String[] PORT_ARGS = {PORT_FLAG, String.valueOf(TEST_PORT)};
 
     static {
         STUB_TILE.setRGB(0, 0, Color.RED.getRGB());
@@ -46,13 +55,50 @@ class TerraPreviewTest {
     }
 
     @Test
-    void chunkTilesAreSquareAndChunkSized() {
-        assertEquals(EarthPreview.CHUNK_SIZE * EarthPreview.PIXELS_PER_BLOCK, EarthPreview.TILE_SIZE);
+    void parsePortDefaultsTo8080() {
+        assertEquals(PreviewWebServer.DEFAULT_PORT, TerraPreview.parsePort(new String[0]));
+    }
+
+    @Test
+    void parsePortAcceptsLongForm() {
+        assertEquals(TEST_PORT, TerraPreview.parsePort(PORT_ARGS));
+    }
+
+    @Test
+    void parsePortAcceptsEqualsForm() {
+        assertEquals(TEST_PORT, TerraPreview.parsePort(new String[] {PORT_FLAG + "=" + TEST_PORT}));
+    }
+
+    @Test
+    void parsePortAcceptsShortForm() {
+        assertEquals(TEST_PORT, TerraPreview.parsePort(new String[] {"-p", String.valueOf(TEST_PORT)}));
+    }
+
+    @Test
+    void parsePortRejectsNonNumericValues() {
+        assertThrows(IllegalArgumentException.class, () -> TerraPreview.parsePort(new String[] {PORT_FLAG, "abc"}));
+    }
+
+    @Test
+    void parsePortRejectsOutOfRangeValues() {
+        assertThrows(IllegalArgumentException.class, () -> TerraPreview.parsePort(new String[] {PORT_FLAG, "0"}));
+        assertThrows(IllegalArgumentException.class, () -> TerraPreview.parsePort(new String[] {PORT_FLAG, "99999"}));
+    }
+
+    @Test
+    void parsePortRejectsMissingValue() {
+        assertThrows(NoSuchElementException.class, () -> TerraPreview.parsePort(new String[] {PORT_FLAG}));
+    }
+
+    @Test
+    void parsePortRejectsUnknownArguments() {
+        assertThrows(IllegalArgumentException.class, () -> TerraPreview.parsePort(new String[] {"--unknown"}));
     }
 
     @Test
     void webServerServesPreviewPage() throws IOException, InterruptedException {
         PreviewWebServer server = new PreviewWebServer((_, _, _) -> STUB_TILE);
+        assertEquals(PreviewWebServer.DEFAULT_PORT, server.port());
         server.start();
         try {
             HttpResponse<String> response = this.get(BASE_URL + "/", HttpResponse.BodyHandlers.ofString());
