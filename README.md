@@ -5,6 +5,7 @@ A development tool for the [terraminusminus](https://github.com/SmylerMC/terrami
 ## Requirements
 
 - Java 25+
+- Node.js 22+ (only needed to run the in-browser tests)
 
 ## Build
 
@@ -12,11 +13,39 @@ A development tool for the [terraminusminus](https://github.com/SmylerMC/terrami
 ./gradlew build
 ```
 
-## Test
+## Testing
 
-```sh
-./gradlew test
-```
+Terrapreview has two test layers, both run by `./gradlew check` (and therefore by
+`./gradlew build`):
+
+| Layer | Framework | Location | Run on its own |
+| --- | --- | --- | --- |
+| Java unit tests | [JUnit 6](https://junit.org/junit6/) | `src/test/java/` | `./gradlew test` |
+| In-browser web UI tests | [Mocha](https://mochajs.org/) + [Puppeteer](https://pptr.dev/) | `web-test/` | `./gradlew browserTest` |
+
+### In-browser tests
+
+The web UI (the Leaflet map page under `src/main/resources/web/`) is tested in a
+real Chrome. The suite in `web-test/` starts a small Node harness server that:
+
+- serves the actual page served in production, with the placeholders substituted,
+- mocks the `/tiles/z/x/y.png` chunk tile endpoint, and
+- mocks the `/events` server-sent-event stream, letting tests simulate
+  configuration-triggered preview reloads.
+
+The tests cover tile rendering, absence of client-side script errors, and
+versioned tile reloads over server-sent events.
+
+The first run installs the npm dependencies in `web-test/` and downloads a
+Puppeteer-managed Chrome automatically; Node.js 22+ must be available on the
+`PATH`. Subsequent runs reuse them.
+
+The following environment variables are supported:
+
+| Variable | Effect |
+| --- | --- |
+| `PUPPETEER_EXECUTABLE_PATH` | Use an existing Chrome installation instead of downloading one |
+| `CHROME_LIBS_DIR` | Extra directory added to `LD_LIBRARY_PATH` when launching Chrome, for systems where Chrome's shared libraries are not in the default paths |
 
 ## Run
 

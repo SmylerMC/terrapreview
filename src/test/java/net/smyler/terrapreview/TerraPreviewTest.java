@@ -1,6 +1,7 @@
 package net.smyler.terrapreview;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -21,6 +22,7 @@ import java.time.Duration;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.regex.Pattern;
 import javax.imageio.ImageIO;
 import org.junit.jupiter.api.Test;
 
@@ -106,6 +108,13 @@ class TerraPreviewTest {
         assertTrue(page.contains("maxZoom: 3"));
         assertTrue(page.contains("tileSize: TILE_SIZE"));
         assertTrue(page.contains("'/tiles/' + coords.z + '/' + coords.x + '/' + coords.y + '.png?v=' + tileVersion"));
+    }
+
+    @Test
+    void previewPageSubstitutesTemplatePlaceholders() {
+        PreviewWebServer server = new PreviewWebServer((_, _, _) -> STUB_TILE);
+        String page = server.previewPage();
+        assertFalse(Pattern.compile("@[A-Z_]+@").matcher(page).find());
     }
 
     @Test

@@ -28,3 +28,6 @@ replay_pid*
 build/
 !gradle/wrapper/gradle-wrapper.jar
 terraminusminus/
+
+# Node / browser tests
+web-test/node_modules/

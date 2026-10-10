@@ -56,3 +56,16 @@ tasks.test {
     }
 }
 
+val webTestDir = layout.projectDirectory.dir("web-test")
+
+tasks.register("browserTest", Exec::class) {
+    group = "verification"
+    description = "Runs the in-browser tests for the web UI with Mocha and Puppeteer."
+    workingDir(webTestDir)
+    commandLine("node", "run.mjs")
+}
+
+tasks.named("check") {
+    dependsOn("browserTest")
+}
+
