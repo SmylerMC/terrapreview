@@ -3,15 +3,21 @@ package net.smyler.terrapreview;
 import java.awt.image.BufferedImage;
 
 /**
- * A preview of a chunk grid, renderable as an image.
+ * A preview of the world, renderable as a pyramid of image tiles.
  */
 public interface Preview {
     /**
-     * Renders the preview around the given location as an image.
+     * Renders the tile at the given zoom level and tile coordinates as an image.
      *
-     * @param longitude the longitude of the grid center
-     * @param latitude the latitude of the grid center
-     * @return the image representation of the chunk grid
+     * <p>At zoom 0, each tile covers one full chunk. Each additional zoom level halves the
+     * number of blocks per tile and doubles the number of pixels per block, so tiles always
+     * render at {@code EarthPreview.TILE_SIZE} pixels and show a quarter of the area per axis
+     * of the previous level. Negative zoom levels cover multiple chunks per tile.
+     *
+     * @param zoom the zoom level, 0 being one chunk per tile
+     * @param tileX the x coordinate of the tile, in tile units at the given zoom
+     * @param tileZ the z coordinate of the tile, in tile units at the given zoom
+     * @return the image tile
      */
-    BufferedImage render(double longitude, double latitude);
+    BufferedImage renderTile(int zoom, int tileX, int tileZ);
 }
