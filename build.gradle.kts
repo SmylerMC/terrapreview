@@ -16,10 +16,6 @@ repositories {
         name = "Smyler Releases"
         url = uri("https://maven.smyler.net/releases/")
     }
-    maven {
-        name = "DaPorkchop_"
-        url = uri("https://maven.daporkchop.net/")
-    }
 }
 
 dependencies {
