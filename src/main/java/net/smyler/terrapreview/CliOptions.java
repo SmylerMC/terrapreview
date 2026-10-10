@@ -13,14 +13,22 @@ import java.util.NoSuchElementException;
  * @param centerLatitude the latitude of the initial map center, in degrees, or null for the default
  * @param centerX the Minecraft block x coordinate of the initial map center, or null for the default
  * @param centerZ the Minecraft block z coordinate of the initial map center, or null for the default
+ * @param openBrowser whether to open the user's browser at the preview page when the server starts,
+ *                    or null to open it only when stdout is a terminal
  */
 public record CliOptions(
-        int port, String projection, Double centerLongitude, Double centerLatitude, Double centerX, Double centerZ) {
+        int port,
+        String projection,
+        Double centerLongitude,
+        Double centerLatitude,
+        Double centerX,
+        Double centerZ,
+        Boolean openBrowser) {
     /**
      * The default options, used when no flag is given.
      */
     public static final CliOptions DEFAULT =
-            new CliOptions(PreviewWebServer.DEFAULT_PORT, Projections.BTE, null, null, null, null);
+            new CliOptions(PreviewWebServer.DEFAULT_PORT, Projections.BTE, null, null, null, null, null);
 
     private static final String PORT_FLAG = "--port";
     private static final String PORT_SHORT_FLAG = "-p";
@@ -30,6 +38,8 @@ public record CliOptions(
     private static final String CENTER_LAT_FLAG = "--center-lat";
     private static final String CENTER_X_FLAG = "--center-x";
     private static final String CENTER_Z_FLAG = "--center-z";
+    private static final String OPEN_BROWSER_FLAG = "--open-browser";
+    private static final String NO_OPEN_BROWSER_FLAG = "--no-open-browser";
 
     private static final int MIN_PORT = 1;
     private static final int MAX_PORT = 65535;
@@ -58,6 +68,7 @@ public record CliOptions(
         Double centerLatitude = null;
         Double centerX = null;
         Double centerZ = null;
+        Boolean openBrowser = null;
         List<String> arguments = normalize(args);
         int i = 0;
         while (i < arguments.size()) {
@@ -65,16 +76,25 @@ public record CliOptions(
             if (!isKnownFlag(flag)) {
                 throw new IllegalArgumentException("Unknown argument: " + flag);
             }
-            String value = valueOf(arguments, flag, i + 1);
-            i += 2;
+            i += 1;
             switch (flag) {
-                case PORT_FLAG, PORT_SHORT_FLAG -> port = parsePortValue(value);
-                case PROJECTION_FLAG, PROJECTION_SHORT_FLAG -> projection = value;
-                case CENTER_LON_FLAG -> centerLongitude = parseLongitude(value);
-                case CENTER_LAT_FLAG -> centerLatitude = parseLatitude(value);
-                case CENTER_X_FLAG -> centerX = parseCoordinate(value);
-                case CENTER_Z_FLAG -> centerZ = parseCoordinate(value);
-                default -> throw new IllegalArgumentException("Unknown argument: " + flag);
+                case OPEN_BROWSER_FLAG -> openBrowser = true;
+                case NO_OPEN_BROWSER_FLAG -> openBrowser = false;
+                default -> {
+                    String value = valueOf(arguments, flag, i);
+                    i += 1;
+                    switch (flag) {
+                        case PORT_FLAG, PORT_SHORT_FLAG -> port = parsePortValue(value);
+                        case PROJECTION_FLAG, PROJECTION_SHORT_FLAG -> projection = value;
+                        case CENTER_LON_FLAG -> centerLongitude = parseLongitude(value);
+                        case CENTER_LAT_FLAG -> centerLatitude = parseLatitude(value);
+                        case CENTER_X_FLAG -> centerX = parseCoordinate(value);
+                        case CENTER_Z_FLAG -> centerZ = parseCoordinate(value);
+                        case OPEN_BROWSER_FLAG, NO_OPEN_BROWSER_FLAG ->
+                            throw new IllegalArgumentException("The browser flags do not take a value: " + flag);
+                        default -> throw new IllegalArgumentException("Unknown argument: " + flag);
+                    }
+                }
             }
         }
         if ((centerLongitude == null) != (centerLatitude == null)) {
@@ -87,7 +107,7 @@ public record CliOptions(
             throw new IllegalArgumentException(
                     "The center can be given either in geographic or in Minecraft coordinates, not both");
         }
-        return new CliOptions(port, projection, centerLongitude, centerLatitude, centerX, centerZ);
+        return new CliOptions(port, projection, centerLongitude, centerLatitude, centerX, centerZ, openBrowser);
     }
 
     private static boolean isKnownFlag(String flag) {
@@ -99,7 +119,9 @@ public record CliOptions(
                     CENTER_LON_FLAG,
                     CENTER_LAT_FLAG,
                     CENTER_X_FLAG,
-                    CENTER_Z_FLAG -> true;
+                    CENTER_Z_FLAG,
+                    OPEN_BROWSER_FLAG,
+                    NO_OPEN_BROWSER_FLAG -> true;
             default -> false;
         };
     }

@@ -24,8 +24,8 @@ public final class TerraPreview {
      */
     public static final Path CONFIG_ROOT = Path.of("terraminusminus", "config");
 
-    private static final String USAGE = "Usage: terrapreview [--port <port>] [--projection <name>]"
-            + " [--center-lon <longitude> --center-lat <latitude> | --center-x <x> --center-z <z>]";
+    private static final String USAGE = "Usage: terrapreview [--port <port>] [--projection <name>] [--open-browser]"
+            + " | --no-open-browser] [--center-lon <longitude> --center-lat <latitude> | --center-x <x> --center-z <z>]";
 
     /**
      * Returns the greeting message of this application.
@@ -56,7 +56,11 @@ public final class TerraPreview {
         double[] centerChunk = centerChunkOf(options, preview);
         PreviewWebServer server = new PreviewWebServer(preview, centerChunk, options.port());
         server.start();
-        LOGGER.info("TerraPreview web server listening on http://localhost:{}/", server.port());
+        String previewUrl = "http://localhost:" + server.port() + "/";
+        LOGGER.info("TerraPreview web server listening on {}", previewUrl);
+        if (shouldOpenBrowser(options)) {
+            BrowserOpener.open(previewUrl);
+        }
         LOGGER.info("Using the {} projection", options.projection());
         ConfigWatcher watcher = new ConfigWatcher(CONFIG_ROOT, () -> {
             LOGGER.info("Configuration change detected, updating the rendering engine...");
@@ -64,6 +68,13 @@ public final class TerraPreview {
         });
         watcher.start();
         LOGGER.info("Watching {} for configuration changes", CONFIG_ROOT);
+    }
+
+    static boolean shouldOpenBrowser(CliOptions options) {
+        if (options.openBrowser() != null) {
+            return options.openBrowser();
+        }
+        return System.console() != null;
     }
 
     private static double[] centerChunkOf(CliOptions options, EarthPreview preview) {
