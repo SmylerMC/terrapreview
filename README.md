@@ -92,6 +92,15 @@ The initial map center can be chosen either in geographic coordinates or in Mine
 
 The flags also accept the `--center-lon=<longitude>` form. Longitude and latitude must be valid degrees (-180/180 and -90/90); a geographic center is converted to Minecraft coordinates using the selected projection. The two forms cannot be mixed. By default the map is centered on the Trocadero, Paris.
 
+By default Terrapreview opens your browser at the preview page when the server starts, unless stdout is not a terminal (e.g. when running under a service manager or in CI). You can force either behavior:
+
+```sh
+./gradlew run --args="--open-browser"     # always open the browser
+./gradlew run --args="--no-open-browser"  # never open the browser
+```
+
+If a browser cannot be opened on your system, Terrapreview logs a warning with the URL to visit instead.
+
 ## Live-reloaded configuration
 
 Terraminusminus resolves external configuration from a config root directory (default: `./terraminusminus/config`, configurable at runtime via `Disk#setConfigRoot`). Terrapreview watches this directory and rebuilds the generator, then live-reloads the web UI, whenever any of the following files change:

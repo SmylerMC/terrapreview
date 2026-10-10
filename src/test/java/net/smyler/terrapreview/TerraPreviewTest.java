@@ -58,6 +58,10 @@ class TerraPreviewTest {
 
     private static final String CENTER_Z_FLAG = "--center-z";
 
+    private static final String OPEN_BROWSER_FLAG = "--open-browser";
+
+    private static final String NO_OPEN_BROWSER_FLAG = "--no-open-browser";
+
     private static final String CENTER_LON = "12.5";
 
     private static final String CENTER_LAT = "-45.25";
@@ -226,6 +230,35 @@ class TerraPreviewTest {
         assertThrows(
                 IllegalArgumentException.class,
                 () -> CliOptions.parse(new String[] {CENTER_LON_FLAG, CENTER_LON, CENTER_LAT_FLAG, "91"}));
+    }
+
+    @Test
+    void openBrowserFlagForcesOpening() {
+        assertTrue(CliOptions.parse(new String[] {OPEN_BROWSER_FLAG}).openBrowser());
+        assertTrue(TerraPreview.shouldOpenBrowser(CliOptions.parse(new String[] {OPEN_BROWSER_FLAG})));
+    }
+
+    @Test
+    void noOpenBrowserFlagForcesNotOpening() {
+        assertFalse(CliOptions.parse(new String[] {NO_OPEN_BROWSER_FLAG}).openBrowser());
+        assertFalse(TerraPreview.shouldOpenBrowser(CliOptions.parse(new String[] {NO_OPEN_BROWSER_FLAG})));
+    }
+
+    @Test
+    void browserFlagsTakeNoValue() {
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> CliOptions.parse(new String[] {OPEN_BROWSER_FLAG + EQUALS_FORM + "true"}));
+        assertThrows(
+                IllegalArgumentException.class, () -> CliOptions.parse(new String[] {PORT_FLAG, OPEN_BROWSER_FLAG}));
+    }
+
+    @Test
+    void lastBrowserFlagWins() {
+        assertTrue(CliOptions.parse(new String[] {NO_OPEN_BROWSER_FLAG, OPEN_BROWSER_FLAG})
+                .openBrowser());
+        assertFalse(CliOptions.parse(new String[] {OPEN_BROWSER_FLAG, NO_OPEN_BROWSER_FLAG})
+                .openBrowser());
     }
 
     @Test
