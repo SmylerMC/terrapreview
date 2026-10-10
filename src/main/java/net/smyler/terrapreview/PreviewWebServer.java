@@ -46,15 +46,25 @@ public final class PreviewWebServer {
             </html>
             """;
 
-    private final Preview preview;
+    private volatile Preview preview;
     private HttpServer server;
 
     /**
      * Creates a new web server serving the given preview.
      *
+     *
      * @param preview the preview to serve
      */
     public PreviewWebServer(Preview preview) {
+        this.preview = preview;
+    }
+
+    /**
+     * Replaces the preview served by this web server.
+     *
+     * @param preview the new preview to serve
+     */
+    public void setPreview(Preview preview) {
         this.preview = preview;
     }
 

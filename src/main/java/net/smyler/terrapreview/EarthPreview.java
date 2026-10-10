@@ -54,7 +54,7 @@ public final class EarthPreview implements Preview {
      * Creates a new previewer using the default Terra++ generator settings.
      */
     public EarthPreview() {
-        this(EarthGeneratorSettings.parse(EarthGeneratorSettings.BTE_DEFAULT_SETTINGS));
+        this(EarthGeneratorSettings.parseUncached(EarthGeneratorSettings.BTE_DEFAULT_SETTINGS));
     }
 
     /**
