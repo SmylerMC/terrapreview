@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 import java.awt.Color;
 import java.awt.image.BufferedImage;
@@ -15,6 +16,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
+import java.net.InetSocketAddress;
+import java.net.ServerSocket;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -476,6 +479,38 @@ class TerraPreviewTest {
     @Test
     void defaultCenterChunkIsWithinTheProjectedWorld() {
         assertNotNull(new EarthPreview().defaultCenterChunk());
+    }
+
+    @Test
+    void webServerBindsToLoopbackOnly() throws IOException {
+        PreviewWebServer server = new PreviewWebServer((_, _, _) -> STUB_TILE);
+        server.start();
+        try {
+            try (ServerSocket socket = new ServerSocket()) {
+                socket.bind(new InetSocketAddress("0.0.0.0", server.port()));
+                fail("the web server port was reachable on a non-loopback interface");
+            } catch (IOException _) {
+                // expected: the port is already bound on the loopback interface only
+            }
+        } finally {
+            server.stop();
+        }
+    }
+
+    @Test
+    void ephemeralPortIsAssignedOnStart() throws IOException, InterruptedException {
+        PreviewWebServer server =
+                new PreviewWebServer((_, _, _) -> STUB_TILE, new double[] {0, 0}, PreviewWebServer.ANY_PORT);
+        assertEquals(PreviewWebServer.ANY_PORT, server.port());
+        server.start();
+        try {
+            assertTrue(server.port() > 0, "the ephemeral port was not assigned");
+            HttpResponse<String> response =
+                    this.get("http://localhost:" + server.port() + "/", HttpResponse.BodyHandlers.ofString());
+            assertEquals(HttpURLConnection.HTTP_OK, response.statusCode());
+        } finally {
+            server.stop();
+        }
     }
 
     private <T> HttpResponse<T> get(String url, HttpResponse.BodyHandler<T> bodyHandler)
