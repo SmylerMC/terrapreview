@@ -35,3 +35,6 @@ terraminusminus/
 
 # Node / browser tests
 web-test/node_modules/
+
+# IntelliJ Platform local IDE caches
+.intellijPlatform/
