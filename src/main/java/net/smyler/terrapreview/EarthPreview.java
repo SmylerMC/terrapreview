@@ -2,6 +2,10 @@ package net.smyler.terrapreview;
 
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.LoadingCache;
+import java.awt.Color;
+import java.awt.Graphics2D;
+import java.awt.image.BufferedImage;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import net.buildtheearth.terraminusminus.generator.CachedChunkData;
@@ -13,10 +17,9 @@ import net.buildtheearth.terraminusminus.substitutes.ChunkPos;
 import net.buildtheearth.terraminusminus.util.http.Http;
 
 /**
- * Generates a grid of earth chunks around a geographic location and renders it as ASCII art.
+ * Generates a grid of earth chunks around a geographic location and renders it as an image.
  */
 public final class EarthPreview implements Preview {
-
     /**
      * The number of chunks along each axis of the generated grid.
      */
@@ -33,6 +36,11 @@ public final class EarthPreview implements Preview {
     private static final int CHUNK_SHIFT = 4;
 
     /**
+     * The number of image pixels used to render a single block.
+     */
+    public static final int PIXELS_PER_BLOCK = 16;
+
+    /**
      * The default longitude of the grid center: the Trocadero, Paris.
      */
     public static final double DEFAULT_LONGITUDE = 2.2890;
@@ -41,6 +49,37 @@ public final class EarthPreview implements Preview {
      * The default latitude of the grid center: the Trocadero, Paris.
      */
     public static final double DEFAULT_LATITUDE = 48.8620;
+
+    /**
+     * The color used for water blocks.
+     */
+    private static final Color WATER_COLOR = new Color(0x2A66C9);
+
+    /**
+     * The color used for blocks without a known color.
+     */
+    private static final Color UNKNOWN_COLOR = new Color(0x00FF00);
+
+    /**
+     * The color used for the background, as if it was made of grass blocks.
+     */
+    private static final Color EMPTY_COLOR = new Color(0x3E7D1F);
+
+    /**
+     * A hard-coded color per known surface block path.
+     */
+    static final Map<String, Color> BLOCK_COLORS = Map.ofEntries(
+            Map.entry("oak_log", new Color(0x6B4E26)),
+            Map.entry("spruce_log", new Color(0x3B2710)),
+            Map.entry("bricks", new Color(0x96604A)),
+            Map.entry("gray_concrete", new Color(0x4A4A4A)),
+            Map.entry("stone", new Color(0x7F7F7F)),
+            Map.entry("dirt_path", new Color(0x907944)),
+            Map.entry("grass_block", new Color(0x5FA837)),
+            Map.entry("dirt", new Color(0x8B5A2B)),
+            Map.entry("sand", new Color(0xDBD3A0)),
+            Map.entry("gravel", new Color(0x807B72)),
+            Map.entry("snow_block", new Color(0xF9FBFC)));
 
     /**
      * How long generated chunks stay in the cache after their last access.
@@ -72,14 +111,14 @@ public final class EarthPreview implements Preview {
     }
 
     /**
-     * Generates a grid of chunks around the given location and renders it as ASCII art.
+     * Generates a grid of chunks around the given location and renders it as an image.
      *
      * @param longitude the longitude of the grid center
      * @param latitude the latitude of the grid center
-     * @return the ASCII art representation of the chunk grid
+     * @return the image representation of the chunk grid
      */
     @Override
-    public String render(double longitude, double latitude) {
+    public BufferedImage render(double longitude, double latitude) {
         GeographicProjection projection = this.settings.projection();
         double[] worldPos;
         try {
@@ -90,7 +129,6 @@ public final class EarthPreview implements Preview {
         int centerChunkX = (int) Math.round(worldPos[0]) >> CHUNK_SHIFT;
         int centerChunkZ = (int) Math.round(worldPos[1]) >> CHUNK_SHIFT;
         int half = GRID_SIZE / 2;
-
         CachedChunkData[][] chunks = new CachedChunkData[GRID_SIZE][GRID_SIZE];
         for (int cx = 0; cx < GRID_SIZE; cx++) {
             for (int cz = 0; cz < GRID_SIZE; cz++) {
@@ -98,52 +136,37 @@ public final class EarthPreview implements Preview {
                 chunks[cx][cz] = this.cache.getUnchecked(pos).join();
             }
         }
-
-        return this.toAsciiArt(chunks, longitude, latitude);
+        return this.toImage(chunks);
     }
 
-    private String toAsciiArt(CachedChunkData[][] chunks, double longitude, double latitude) {
-        int size = GRID_SIZE * CHUNK_SIZE;
-        StringBuilder art = new StringBuilder();
-        art.append("Grid of %dx%d chunks (%d x %d blocks) at (%.4f, %.4f), x ->, z v:"
-                        .formatted(GRID_SIZE, GRID_SIZE, size, size, longitude, latitude))
-                .append('\n');
-        for (int z = 0; z < size; z++) {
-            StringBuilder row = new StringBuilder();
-            for (int x = 0; x < size; x++) {
-                CachedChunkData chunk = chunks[x / CHUNK_SIZE][z / CHUNK_SIZE];
-                row.append(toAsciiChar(chunk, x % CHUNK_SIZE, z % CHUNK_SIZE));
+    private BufferedImage toImage(CachedChunkData[][] chunks) {
+        int blocks = GRID_SIZE * CHUNK_SIZE;
+        BufferedImage image =
+                new BufferedImage(blocks * PIXELS_PER_BLOCK, blocks * PIXELS_PER_BLOCK, BufferedImage.TYPE_INT_RGB);
+        Graphics2D graphics = image.createGraphics();
+        try {
+            for (int z = 0; z < blocks; z++) {
+                for (int x = 0; x < blocks; x++) {
+                    CachedChunkData chunk = chunks[x / CHUNK_SIZE][z / CHUNK_SIZE];
+                    graphics.setColor(colorOf(chunk, x % CHUNK_SIZE, z % CHUNK_SIZE));
+                    graphics.fillRect(x * PIXELS_PER_BLOCK, z * PIXELS_PER_BLOCK, PIXELS_PER_BLOCK, PIXELS_PER_BLOCK);
+                }
             }
-            art.append(row).append('\n');
+        } finally {
+            graphics.dispose();
         }
-        return art.toString();
+        return image;
     }
 
-    private static char toAsciiChar(CachedChunkData chunk, int x, int z) {
+    private static Color colorOf(CachedChunkData chunk, int x, int z) {
         if (chunk.groundHeight(x, z) < chunk.surfaceHeight(x, z)) {
-            return '~';
+            return WATER_COLOR;
         }
         String block = blockPath(chunk, x, z);
-        if (block != null) {
-            switch (block) {
-                case "oak_log", "spruce_log" -> {
-                    return 'T';
-                }
-                case "bricks" -> {
-                    return '#';
-                }
-                case "gray_concrete", "stone" -> {
-                    return '\u2593';
-                }
-                case "dirt_path" -> {
-                    return '=';
-                }
-                default -> {
-                    return '%';
-                }
-            }
+        if (block == null) {
+            return EMPTY_COLOR;
         }
-        return ' ';
+        return BLOCK_COLORS.getOrDefault(block, UNKNOWN_COLOR);
     }
 
     private static String blockPath(CachedChunkData chunk, int x, int z) {
