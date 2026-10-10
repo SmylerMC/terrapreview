@@ -1,0 +1,13 @@
+<idea-plugin>
+    <id>net.smyler.terrapreview</id>
+    <name>Terrapreview</name>
+    <vendor>Smyler</vendor>
+    <description>A live-reloading preview of Terra-- generated worlds, embedded in the IDE.</description>
+
+    <depends>com.intellij.modules.platform</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <toolWindow id="Terrapreview" anchor="right" icon="AllIcons.World"
+                    factoryClass="net.smyler.terrapreview.ide.plugin.TerrapreviewToolWindowFactory"/>
+    </extensions>
+</idea-plugin>
