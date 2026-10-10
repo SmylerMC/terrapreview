@@ -10,6 +10,7 @@ import org.apache.logging.log4j.Logger;
  * Entry point of the TerraPreview application.
  */
 public final class TerraPreview {
+
     private static final Logger LOGGER = LogManager.getLogger(TerraPreview.class);
 
     private TerraPreview() {}
@@ -24,8 +25,15 @@ public final class TerraPreview {
      */
     public static final Path CONFIG_ROOT = Path.of("terraminusminus", "config");
 
-    private static final String USAGE = "Usage: terrapreview [--port <port>] [--projection <name>] [--open-browser]"
-            + " | --no-open-browser] [--center-lon <longitude> --center-lat <latitude> | --center-x <x> --center-z <z>]";
+    /**
+     * The directory the Minecraft client JAR is cached in.
+     */
+    public static final Path CLIENT_JAR_CACHE = Path.of("terraminusminus", "terrapreview");
+
+    private static final String USAGE =
+            "Usage: terrapreview [--port <port>] [--projection <name>] [--mc-version <version>]"
+                    + " [--open-browser] | --no-open-browser]"
+                    + " [--center-lon <longitude> --center-lat <latitude> | --center-x <x> --center-z <z>]";
 
     /**
      * Returns the greeting message of this application.
@@ -52,7 +60,8 @@ public final class TerraPreview {
             return;
         }
         TerraIntegration.setup();
-        EarthPreview preview = new EarthPreview(Projections.settings(options.projection()));
+        BlockTextures textures = loadBlockTextures();
+        EarthPreview preview = new EarthPreview(Projections.settings(options.projection()), textures);
         double[] centerChunk = centerChunkOf(options, preview);
         PreviewWebServer server = new PreviewWebServer(preview, centerChunk, options.port());
         server.start();
@@ -64,7 +73,7 @@ public final class TerraPreview {
         LOGGER.info("Using the {} projection", options.projection());
         ConfigWatcher watcher = new ConfigWatcher(CONFIG_ROOT, () -> {
             LOGGER.info("Configuration change detected, updating the rendering engine...");
-            server.setPreview(new EarthPreview(Projections.settings(options.projection())));
+            server.setPreview(new EarthPreview(Projections.settings(options.projection()), textures));
         });
         watcher.start();
         LOGGER.info("Watching {} for configuration changes", CONFIG_ROOT);
@@ -75,6 +84,17 @@ public final class TerraPreview {
             return options.openBrowser();
         }
         return System.console() != null;
+    }
+
+    private static BlockTextures loadBlockTextures() {
+        try {
+            MinecraftClientJar clientJar = MinecraftClientJar.ensureDownloaded(CLIENT_JAR_CACHE, null);
+            LOGGER.info("Using Minecraft {} client JAR at {}", clientJar.version(), clientJar.path());
+            return new BlockTextures(clientJar.path());
+        } catch (IOException e) {
+            LOGGER.error("Failed to load block textures, falling back to flat colors", e);
+            return null;
+        }
     }
 
     private static double[] centerChunkOf(CliOptions options, EarthPreview preview) {

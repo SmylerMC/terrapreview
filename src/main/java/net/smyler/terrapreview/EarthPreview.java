@@ -5,7 +5,7 @@ import com.google.common.cache.LoadingCache;
 import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
-import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import net.buildtheearth.terraminusminus.generator.CachedChunkData;
@@ -56,35 +56,64 @@ public final class EarthPreview implements Preview {
     public static final double DEFAULT_LATITUDE = 48.8620;
 
     /**
-     * The color used for water blocks.
+     * The color used for water blocks without a known texture.
      */
     private static final Color WATER_COLOR = new Color(0x2A66C9);
 
     /**
-     * The color used for blocks without a known color.
+     * The color used for blocks without a known texture.
      */
     private static final Color UNKNOWN_COLOR = new Color(0x00FF00);
 
     /**
-     * The color used for the background, as if it was made of grass blocks.
+     * The color used for the background without a known grass texture, as if it was made of grass blocks.
      */
     private static final Color EMPTY_COLOR = new Color(0x3E7D1F);
 
     /**
-     * A hard-coded color per known surface block path.
+     * The block used to render the background, as if the world was made of grass blocks.
      */
-    static final Map<String, Color> BLOCK_COLORS = Map.ofEntries(
-            Map.entry("oak_log", new Color(0x6B4E26)),
-            Map.entry("spruce_log", new Color(0x3B2710)),
-            Map.entry("bricks", new Color(0x96604A)),
-            Map.entry("gray_concrete", new Color(0x4A4A4A)),
-            Map.entry("stone", new Color(0x7F7F7F)),
-            Map.entry("dirt_path", new Color(0x907944)),
-            Map.entry("grass_block", new Color(0x5FA837)),
-            Map.entry("dirt", new Color(0x8B5A2B)),
-            Map.entry("sand", new Color(0xDBD3A0)),
-            Map.entry("gravel", new Color(0x807B72)),
-            Map.entry("snow_block", new Color(0xF9FBFC)));
+    private static final String GRASS_BLOCK = "grass_block";
+
+    /**
+     * The block used to render water.
+     */
+    private static final String WATER_BLOCK = "water";
+
+    /**
+     * The color deep water is darkened towards, as vanilla water looks darker the deeper it is.
+     */
+    private static final Color DEEP_WATER_COLOR = new Color(0x1A2F6B);
+
+    /**
+     * The darkest blend of the depth gradient, reached in deep water.
+     */
+    private static final float MAX_DEPTH_ALPHA = 0.7F;
+
+    /**
+     * The water depth, in blocks, at which half of the darkening is reached; light attenuates exponentially in water,
+     * so most of the visible change happens over the first few blocks.
+     */
+    private static final double DEPTH_HALF_LIFE = 2D;
+
+    /**
+     * Blends the deep water color over another color for the given water depth.
+     *
+     * <p>The blend follows exponential attenuation, like light in water: half of the darkening is reached at
+     * {@link #DEPTH_HALF_LIFE} blocks and it saturates at {@link #MAX_DEPTH_ALPHA} in deep water. This keeps
+     * consecutive shallow depths clearly distinguishable while deep water stays uniformly dark.
+     *
+     * @param base the color to darken, typically the water texture color
+     * @param depth the water depth, in blocks, zero or more
+     * @return the darkened color
+     */
+    static Color waterDepthColor(Color base, int depth) {
+        double alpha = MAX_DEPTH_ALPHA * (1D - Math.exp(-Math.max(depth, 0) / DEPTH_HALF_LIFE));
+        int red = Math.round((float) (base.getRed() + alpha * (DEEP_WATER_COLOR.getRed() - base.getRed())));
+        int green = Math.round((float) (base.getGreen() + alpha * (DEEP_WATER_COLOR.getGreen() - base.getGreen())));
+        int blue = Math.round((float) (base.getBlue() + alpha * (DEEP_WATER_COLOR.getBlue() - base.getBlue())));
+        return new Color(red, green, blue);
+    }
 
     /**
      * How long generated chunks stay in the cache after their last access.
@@ -95,20 +124,26 @@ public final class EarthPreview implements Preview {
 
     private final LoadingCache<ChunkPos, CompletableFuture<CachedChunkData>> cache;
 
+    private final BlockTextures textures;
+
+    private final java.util.Map<Integer, BufferedImage> deepWaterTextures = new java.util.HashMap<>();
+
     /**
-     * Creates a new previewer using the default Terra++ generator settings.
+     * Creates a new previewer using the default Terra++ generator settings and no block textures.
      */
     public EarthPreview() {
-        this(EarthGeneratorSettings.parseUncached(EarthGeneratorSettings.BTE_DEFAULT_SETTINGS));
+        this(EarthGeneratorSettings.parseUncached(EarthGeneratorSettings.BTE_DEFAULT_SETTINGS), null);
     }
 
     /**
-     * Creates a new previewer using the given generator settings.
+     * Creates a new previewer using the given generator settings and block textures.
      *
      * @param settings the earth generator settings to use
+     * @param textures the block textures to render with, or {@code null} to render flat colors
      */
-    public EarthPreview(EarthGeneratorSettings settings) {
+    public EarthPreview(EarthGeneratorSettings settings, BlockTextures textures) {
         this.settings = settings;
+        this.textures = textures;
         Http.configChanged();
         this.cache = CacheBuilder.newBuilder()
                 .expireAfterAccess(CACHE_EXPIRY_MINUTES, TimeUnit.MINUTES)
@@ -184,8 +219,8 @@ public final class EarthPreview implements Preview {
                     CachedChunkData chunk = this.cache
                             .getUnchecked(new ChunkPos(chunkX, chunkZ))
                             .join();
-                    graphics.setColor(colorOf(chunk, blockX & CHUNK_MASK, blockZ & CHUNK_MASK));
-                    graphics.fillRect(x * pixelsPerBlock, z * pixelsPerBlock, pixelsPerBlock, pixelsPerBlock);
+                    this.drawBlock(
+                            graphics, chunk, blockX, blockZ, x * pixelsPerBlock, z * pixelsPerBlock, pixelsPerBlock);
                 }
             }
         } finally {
@@ -194,19 +229,57 @@ public final class EarthPreview implements Preview {
         return image;
     }
 
-    private static Color colorOf(CachedChunkData chunk, int x, int z) {
-        if (chunk.groundHeight(x, z) < chunk.surfaceHeight(x, z)) {
-            return WATER_COLOR;
+    private void drawBlock(Graphics2D graphics, CachedChunkData chunk, int blockX, int blockZ, int x, int y, int size) {
+        int inChunkX = blockX & CHUNK_MASK;
+        int inChunkZ = blockZ & CHUNK_MASK;
+        int surfaceHeight = chunk.surfaceHeight(inChunkX, inChunkZ);
+        int groundHeight = chunk.groundHeight(inChunkX, inChunkZ);
+        boolean water = groundHeight < surfaceHeight;
+        String block;
+        Color fallback;
+        if (water) {
+            block = WATER_BLOCK;
+            fallback = WATER_COLOR;
+        } else {
+            var state = chunk.surfaceBlock(inChunkX, inChunkZ);
+            block = state == null ? GRASS_BLOCK : state.getBlock().path;
+            fallback = state == null ? EMPTY_COLOR : UNKNOWN_COLOR;
         }
-        String block = blockPath(chunk, x, z);
-        if (block == null) {
-            return EMPTY_COLOR;
+        Optional<BufferedImage> texture =
+                this.textures == null ? Optional.empty() : this.textures.topTexture(block, blockX, blockZ);
+        if (texture.isPresent()) {
+            graphics.drawImage(texture.get(), x, y, size, size, null);
+        } else {
+            graphics.setColor(fallback);
+            graphics.fillRect(x, y, size, size);
         }
-        return BLOCK_COLORS.getOrDefault(block, UNKNOWN_COLOR);
+        if (water) {
+            int depth = surfaceHeight - groundHeight;
+            if (texture.isPresent()) {
+                graphics.drawImage(this.deepWaterTexture(texture.get(), depth), x, y, size, size, null);
+            } else {
+                graphics.setColor(waterDepthColor(fallback, depth));
+                graphics.fillRect(x, y, size, size);
+            }
+        }
     }
 
-    private static String blockPath(CachedChunkData chunk, int x, int z) {
-        var state = chunk.surfaceBlock(x, z);
-        return state == null ? null : state.getBlock().path;
+    private BufferedImage deepWaterTexture(BufferedImage texture, int depth) {
+        if (depth == 0) {
+            return texture;
+        }
+        return this.deepWaterTextures.computeIfAbsent(depth, missing -> {
+            BufferedImage darkened = new BufferedImage(texture.getWidth(), texture.getHeight(), texture.getType());
+            for (int z = 0; z < texture.getHeight(); z++) {
+                for (int x = 0; x < texture.getWidth(); x++) {
+                    darkened.setRGB(
+                            x,
+                            z,
+                            waterDepthColor(new Color(texture.getRGB(x, z)), missing)
+                                    .getRGB());
+                }
+            }
+            return darkened;
+        });
     }
 }
