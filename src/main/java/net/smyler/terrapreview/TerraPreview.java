@@ -30,7 +30,7 @@ public final class TerraPreview {
     }
 
     /**
-     * Starts the web server serving the ASCII earth preview and watches the configuration directory.
+     * Starts the web server serving the earth preview image and watches the configuration directory.
      *
      * @param args the command line arguments, ignored for now
      * @throws IOException if the web server cannot be started

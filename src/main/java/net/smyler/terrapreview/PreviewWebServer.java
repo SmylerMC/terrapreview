@@ -2,6 +2,7 @@ package net.smyler.terrapreview;
 
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
+import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
@@ -9,12 +10,12 @@ import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicLong;
+import javax.imageio.ImageIO;
 
 /**
- * A very simple web server serving the ASCII earth preview.
+ * A very simple web server serving the earth preview image.
  */
 public final class PreviewWebServer {
-
     /**
      * The port the web server listens on.
      */
@@ -22,7 +23,7 @@ public final class PreviewWebServer {
 
     private static final String CONTENT_TYPE_HEADER = "Content-Type";
 
-    private static final String PAGE_TEMPLATE = """
+    private static final String PAGE = """
             <!DOCTYPE html>
             <html lang="en">
             <head>
@@ -38,22 +39,21 @@ public final class PreviewWebServer {
                 align-items: center;
                 justify-content: center;
             }
-            pre {
-                font-family: monospace;
-                font-size: 14px;
-                line-height: 1.1;
+            img {
+                image-rendering: pixelated;
+                max-width: 100%;
+                max-height: 100%;
             }
             </style>
             <script>
             const events = new EventSource('/events');
-            events.onmessage = async () => {
-                const response = await fetch('/preview');
-                document.querySelector('pre').textContent = await response.text();
+            events.onmessage = (event) => {
+                document.querySelector('img').src = '/preview?v=' + event.data;
             };
             </script>
             </head>
             <body>
-            <pre>%s</pre>
+            <img src="/preview" alt="Earth preview">
             </body>
             </html>
             """;
@@ -106,7 +106,7 @@ public final class PreviewWebServer {
         this.server.setExecutor(Executors.newCachedThreadPool(
                 Thread.ofPlatform().daemon().name("terrapreview-server-").factory()));
         this.server.createContext("/events", this::serveEvents);
-        this.server.createContext("/preview", this::serveAsciiArt);
+        this.server.createContext("/preview", this::serveImage);
         this.server.createContext("/", this::servePreview);
         this.server.start();
     }
@@ -125,19 +125,27 @@ public final class PreviewWebServer {
         }
     }
 
-    private void serveAsciiArt(HttpExchange exchange) throws IOException {
-        String art = this.preview.render(EarthPreview.DEFAULT_LONGITUDE, EarthPreview.DEFAULT_LATITUDE);
-        byte[] body = art.getBytes(StandardCharsets.UTF_8);
-        exchange.getResponseHeaders().set(CONTENT_TYPE_HEADER, "text/plain; charset=utf-8");
-        exchange.sendResponseHeaders(HttpURLConnection.HTTP_OK, body.length);
+    /**
+     * Returns the preview page: a minimal centered HTML page that live-reloads the preview image.
+     *
+     * @return the HTML page content
+     */
+    public String previewPage() {
+        return PAGE;
+    }
+
+    private void serveImage(HttpExchange exchange) throws IOException {
+        final BufferedImage image = this.preview.render(EarthPreview.DEFAULT_LONGITUDE, EarthPreview.DEFAULT_LATITUDE);
+        exchange.getResponseHeaders().set(CONTENT_TYPE_HEADER, "image/png");
+        exchange.getResponseHeaders().set("Cache-Control", "no-store");
+        exchange.sendResponseHeaders(HttpURLConnection.HTTP_OK, 0);
         try (OutputStream out = exchange.getResponseBody()) {
-            out.write(body);
+            ImageIO.write(image, "png", out);
         }
     }
 
     private void servePreview(HttpExchange exchange) throws IOException {
-        String art = this.preview.render(EarthPreview.DEFAULT_LONGITUDE, EarthPreview.DEFAULT_LATITUDE);
-        byte[] body = this.wrapInPage(art).getBytes(StandardCharsets.UTF_8);
+        byte[] body = this.previewPage().getBytes(StandardCharsets.UTF_8);
         exchange.getResponseHeaders().set(CONTENT_TYPE_HEADER, "text/html; charset=utf-8");
         exchange.sendResponseHeaders(HttpURLConnection.HTTP_OK, body.length);
         try (OutputStream out = exchange.getResponseBody()) {
@@ -168,16 +176,5 @@ public final class PreviewWebServer {
         } catch (InterruptedException _) {
             Thread.currentThread().interrupt();
         }
-    }
-
-    /**
-     * Embeds the given ASCII art in a minimal centered HTML page that reloads itself on preview changes.
-     *
-     * @param art the ASCII art to embed
-     * @return the HTML page content
-     */
-    public String wrapInPage(String art) {
-        String escaped = art.replace("&", "&amp;").replace("<", "&lt;");
-        return PAGE_TEMPLATE.replace("%s", escaped);
     }
 }

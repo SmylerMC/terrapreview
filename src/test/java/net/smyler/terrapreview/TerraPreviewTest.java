@@ -3,8 +3,12 @@ package net.smyler.terrapreview;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.awt.Color;
+import java.awt.image.BufferedImage;
 import java.io.BufferedReader;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URI;
@@ -12,20 +16,26 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import javax.imageio.ImageIO;
 import org.junit.jupiter.api.Test;
 
 class TerraPreviewTest {
-
     private static final long TIMEOUT_SECONDS = 10L;
 
     private static final long TIMEOUT_NANOS =
-            java.time.Duration.ofSeconds(TIMEOUT_SECONDS).toNanos();
+            Duration.ofSeconds(TIMEOUT_SECONDS).toNanos();
 
-    private static final String STUB_ART = "stub";
+    private static final BufferedImage STUB_IMAGE = new BufferedImage(4, 2, BufferedImage.TYPE_INT_RGB);
 
     private static final String BASE_URL = "http://localhost:" + PreviewWebServer.PORT;
+
+    static {
+        STUB_IMAGE.setRGB(0, 0, Color.RED.getRGB());
+    }
 
     @Test
     void greetingIsHelloTerraPreview() {
@@ -41,48 +51,68 @@ class TerraPreviewTest {
     }
 
     @Test
-    void webServerServesAsciiPreview() throws IOException, InterruptedException {
-        Preview stub = (_, _) -> "stub <preview>";
-        PreviewWebServer server = new PreviewWebServer(stub);
+    void webServerServesPreviewPage() throws IOException, InterruptedException {
+        PreviewWebServer server = new PreviewWebServer((_, _) -> STUB_IMAGE);
         server.start();
         try {
-            HttpClient client = HttpClient.newHttpClient();
-            HttpResponse<String> response = client.send(
-                    HttpRequest.newBuilder(URI.create(BASE_URL + "/")).build(), HttpResponse.BodyHandlers.ofString());
+            HttpResponse<String> response = this.get(BASE_URL + "/", HttpResponse.BodyHandlers.ofString());
             assertEquals(HttpURLConnection.HTTP_OK, response.statusCode());
             assertEquals(
                     "text/html; charset=utf-8",
                     response.headers().firstValue("Content-Type").orElseThrow());
-            assertEquals(server.wrapInPage("stub <preview>"), response.body());
-            assertTrue(response.body().contains("<pre>stub &lt;preview></pre>"));
+            assertEquals(server.previewPage(), response.body());
+            assertTrue(response.body().contains("<img src=\"/preview\" alt=\"Earth preview\">"));
         } finally {
             server.stop();
         }
     }
 
     @Test
+    void previewEndpointServesPngImage() throws IOException, InterruptedException {
+        PreviewWebServer server = new PreviewWebServer((_, _) -> STUB_IMAGE);
+        server.start();
+        try {
+            HttpResponse<byte[]> response = this.get(BASE_URL + "/preview", HttpResponse.BodyHandlers.ofByteArray());
+            assertEquals(HttpURLConnection.HTTP_OK, response.statusCode());
+            assertEquals(
+                    "image/png", response.headers().firstValue("Content-Type").orElseThrow());
+            BufferedImage image = ImageIO.read(new ByteArrayInputStream(response.body()));
+            assertEquals(STUB_IMAGE.getWidth(), image.getWidth());
+            assertEquals(STUB_IMAGE.getHeight(), image.getHeight());
+            assertEquals(Color.RED.getRGB(), image.getRGB(0, 0));
+        } finally {
+            server.stop();
+        }
+    }
+
+    @Test
+    void servedPageListensForServerSentEvents() {
+        PreviewWebServer server = new PreviewWebServer((_, _) -> STUB_IMAGE);
+        String page = server.previewPage();
+        assertTrue(page.contains("new EventSource('/events')"));
+        assertTrue(page.contains("document.querySelector('img').src"));
+        assertTrue(page.contains("'/preview?v=' + event.data"));
+    }
+
+    @Test
     void eventStreamNotifiesOnPreviewChange() throws IOException, InterruptedException {
-        PreviewWebServer server = new PreviewWebServer((_, _) -> STUB_ART);
+        PreviewWebServer server = new PreviewWebServer((_, _) -> STUB_IMAGE);
         server.start();
         CountDownLatch connected = new CountDownLatch(1);
         CountDownLatch reloaded = new CountDownLatch(1);
         AtomicReference<String> event = new AtomicReference<>();
         Thread reader = new Thread(() -> {
-            try {
-                HttpURLConnection connection = (HttpURLConnection)
-                        URI.create(BASE_URL + "/events").toURL().openConnection();
-                try (BufferedReader lines = new BufferedReader(
-                        new InputStreamReader(connection.getInputStream(), StandardCharsets.UTF_8))) {
-                    String line;
-                    while ((line = lines.readLine()) != null) {
-                        if (line.startsWith("retry:")) {
-                            connected.countDown();
-                        }
-                        if (line.startsWith("data:")) {
-                            event.set(line);
-                            reloaded.countDown();
-                            return;
-                        }
+            try (InputStream in = URI.create(BASE_URL + "/events").toURL().openStream();
+                    BufferedReader lines = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
+                String line;
+                while ((line = lines.readLine()) != null) {
+                    if (line.startsWith("retry:")) {
+                        connected.countDown();
+                    }
+                    if (line.startsWith("data:")) {
+                        event.set(line);
+                        reloaded.countDown();
+                        return;
                     }
                 }
             } catch (IOException _) {
@@ -92,12 +122,9 @@ class TerraPreviewTest {
         reader.setDaemon(true);
         reader.start();
         try {
-            assertTrue(
-                    connected.await(TIMEOUT_NANOS, java.util.concurrent.TimeUnit.NANOSECONDS),
-                    "event stream did not open");
-            server.setPreview((_, _) -> "updated");
-            assertTrue(
-                    reloaded.await(TIMEOUT_NANOS, java.util.concurrent.TimeUnit.NANOSECONDS), "no event was received");
+            assertTrue(connected.await(TIMEOUT_NANOS, TimeUnit.NANOSECONDS), "event stream did not open");
+            server.setPreview((_, _) -> STUB_IMAGE);
+            assertTrue(reloaded.await(TIMEOUT_NANOS, TimeUnit.NANOSECONDS), "no event was received");
             assertEquals("data: 1", event.get());
         } finally {
             server.stop();
@@ -105,30 +132,13 @@ class TerraPreviewTest {
     }
 
     @Test
-    void servedPageListensForServerSentEvents() {
-        PreviewWebServer server = new PreviewWebServer((_, _) -> STUB_ART);
-        String page = server.wrapInPage(STUB_ART);
-        assertTrue(page.contains("new EventSource('/events')"));
-        assertTrue(page.contains("fetch('/preview')"));
-        assertTrue(page.contains("document.querySelector('pre').textContent"));
+    void blockColorTableIsNotEmpty() {
+        assertTrue(!EarthPreview.BLOCK_COLORS.isEmpty());
     }
 
-    @Test
-    void previewEndpointServesAsciiArt() throws IOException, InterruptedException {
-        PreviewWebServer server = new PreviewWebServer((_, _) -> "updated art");
-        server.start();
-        try {
-            HttpClient client = HttpClient.newHttpClient();
-            HttpResponse<String> response = client.send(
-                    HttpRequest.newBuilder(URI.create(BASE_URL + "/preview")).build(),
-                    HttpResponse.BodyHandlers.ofString());
-            assertEquals(HttpURLConnection.HTTP_OK, response.statusCode());
-            assertEquals(
-                    "text/plain; charset=utf-8",
-                    response.headers().firstValue("Content-Type").orElseThrow());
-            assertEquals("updated art", response.body());
-        } finally {
-            server.stop();
-        }
+    private <T> HttpResponse<T> get(String url, HttpResponse.BodyHandler<T> bodyHandler)
+            throws IOException, InterruptedException {
+        return HttpClient.newHttpClient()
+                .send(HttpRequest.newBuilder(URI.create(url)).build(), bodyHandler);
     }
 }

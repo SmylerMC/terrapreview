@@ -1,16 +1,17 @@
 package net.smyler.terrapreview;
 
+import java.awt.image.BufferedImage;
+
 /**
- * A preview of a chunk grid, renderable as ASCII art.
+ * A preview of a chunk grid, renderable as an image.
  */
 public interface Preview {
-
     /**
-     * Renders the preview around the given location as ASCII art.
+     * Renders the preview around the given location as an image.
      *
      * @param longitude the longitude of the grid center
      * @param latitude the latitude of the grid center
-     * @return the ASCII art representation of the chunk grid
+     * @return the image representation of the chunk grid
      */
-    String render(double longitude, double latitude);
+    BufferedImage render(double longitude, double latitude);
 }
