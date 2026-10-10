@@ -3,6 +3,7 @@ package net.smyler.terrapreview;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -47,6 +48,32 @@ class TerraPreviewTest {
 
     private static final String PROJECTION_FLAG = "--projection";
 
+    private static final String EQUALS_FORM = "=";
+
+    private static final String CENTER_LON_FLAG = "--center-lon";
+
+    private static final String CENTER_LAT_FLAG = "--center-lat";
+
+    private static final String CENTER_X_FLAG = "--center-x";
+
+    private static final String CENTER_Z_FLAG = "--center-z";
+
+    private static final String CENTER_LON = "12.5";
+
+    private static final String CENTER_LAT = "-45.25";
+
+    private static final double CENTER_LON_VALUE = 12.5D;
+
+    private static final double CENTER_LAT_VALUE = -45.25D;
+
+    private static final String CENTER_X = "1000";
+
+    private static final String CENTER_Z = "-2000";
+
+    private static final double CENTER_X_VALUE = 1000.0D;
+
+    private static final double CENTER_Z_VALUE = -2000.0D;
+
     static {
         STUB_TILE.setRGB(0, 0, Color.RED.getRGB());
     }
@@ -70,7 +97,8 @@ class TerraPreviewTest {
     void optionsAcceptPortInEqualsForm() {
         assertEquals(
                 TEST_PORT,
-                CliOptions.parse(new String[] {PORT_FLAG + "=" + TEST_PORT}).port());
+                CliOptions.parse(new String[] {PORT_FLAG + EQUALS_FORM + TEST_PORT})
+                        .port());
     }
 
     @Test
@@ -132,6 +160,79 @@ class TerraPreviewTest {
     @Test
     void optionsRejectUnknownArguments() {
         assertThrows(IllegalArgumentException.class, () -> CliOptions.parse(new String[] {"--unknown"}));
+    }
+
+    @Test
+    void optionsAcceptGeographicCenter() {
+        CliOptions options = CliOptions.parse(new String[] {CENTER_LON_FLAG, CENTER_LON, CENTER_LAT_FLAG, CENTER_LAT});
+        assertEquals(CENTER_LON_VALUE, options.centerLongitude());
+        assertEquals(CENTER_LAT_VALUE, options.centerLatitude());
+        assertNull(options.centerX());
+        assertNull(options.centerZ());
+    }
+
+    @Test
+    void optionsAcceptMinecraftCenter() {
+        CliOptions options = CliOptions.parse(new String[] {CENTER_X_FLAG, CENTER_X, CENTER_Z_FLAG, CENTER_Z});
+        assertEquals(CENTER_X_VALUE, options.centerX());
+        assertEquals(CENTER_Z_VALUE, options.centerZ());
+        assertNull(options.centerLongitude());
+        assertNull(options.centerLatitude());
+    }
+
+    @Test
+    void optionsAcceptCenterInEqualsForm() {
+        CliOptions options = CliOptions.parse(
+                new String[] {CENTER_LON_FLAG + EQUALS_FORM + CENTER_LON, CENTER_LAT_FLAG + EQUALS_FORM + CENTER_LAT});
+        assertEquals(CENTER_LON_VALUE, options.centerLongitude());
+        assertEquals(CENTER_LAT_VALUE, options.centerLatitude());
+    }
+
+    @Test
+    void optionsRejectIncompleteGeographicCenter() {
+        assertThrows(
+                IllegalArgumentException.class, () -> CliOptions.parse(new String[] {CENTER_LON_FLAG, CENTER_LON}));
+        assertThrows(
+                IllegalArgumentException.class, () -> CliOptions.parse(new String[] {CENTER_LAT_FLAG, CENTER_LAT}));
+    }
+
+    @Test
+    void optionsRejectIncompleteMinecraftCenter() {
+        assertThrows(IllegalArgumentException.class, () -> CliOptions.parse(new String[] {CENTER_X_FLAG, CENTER_X}));
+        assertThrows(IllegalArgumentException.class, () -> CliOptions.parse(new String[] {CENTER_Z_FLAG, CENTER_Z}));
+    }
+
+    @Test
+    void optionsRejectMixedCenterForms() {
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> CliOptions.parse(new String[] {
+                    CENTER_LON_FLAG,
+                    CENTER_LON,
+                    CENTER_LAT_FLAG,
+                    CENTER_LAT,
+                    CENTER_X_FLAG,
+                    CENTER_X,
+                    CENTER_Z_FLAG,
+                    CENTER_Z
+                }));
+    }
+
+    @Test
+    void optionsRejectOutOfRangeCoordinates() {
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> CliOptions.parse(new String[] {CENTER_LON_FLAG, "181", CENTER_LAT_FLAG, CENTER_LAT}));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> CliOptions.parse(new String[] {CENTER_LON_FLAG, CENTER_LON, CENTER_LAT_FLAG, "91"}));
+    }
+
+    @Test
+    void optionsRejectNonNumericCoordinates() {
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> CliOptions.parse(new String[] {CENTER_LON_FLAG, "abc", CENTER_LAT_FLAG, CENTER_LAT}));
     }
 
     @Test

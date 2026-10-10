@@ -24,7 +24,8 @@ public final class TerraPreview {
      */
     public static final Path CONFIG_ROOT = Path.of("terraminusminus", "config");
 
-    private static final String USAGE = "Usage: terrapreview [--port <port>] [--projection <name>]";
+    private static final String USAGE = "Usage: terrapreview [--port <port>] [--projection <name>]"
+            + " [--center-lon <longitude> --center-lat <latitude> | --center-x <x> --center-z <z>]";
 
     /**
      * Returns the greeting message of this application.
@@ -52,7 +53,8 @@ public final class TerraPreview {
         }
         TerraIntegration.setup();
         EarthPreview preview = new EarthPreview(Projections.settings(options.projection()));
-        PreviewWebServer server = new PreviewWebServer(preview, preview.defaultCenterChunk(), options.port());
+        double[] centerChunk = centerChunkOf(options, preview);
+        PreviewWebServer server = new PreviewWebServer(preview, centerChunk, options.port());
         server.start();
         LOGGER.info("TerraPreview web server listening on http://localhost:{}/", server.port());
         LOGGER.info("Using the {} projection", options.projection());
@@ -62,5 +64,15 @@ public final class TerraPreview {
         });
         watcher.start();
         LOGGER.info("Watching {} for configuration changes", CONFIG_ROOT);
+    }
+
+    private static double[] centerChunkOf(CliOptions options, EarthPreview preview) {
+        if (options.centerX() != null && options.centerZ() != null) {
+            return EarthPreview.centerChunkOfBlock(options.centerX(), options.centerZ());
+        }
+        if (options.centerLongitude() != null && options.centerLatitude() != null) {
+            return preview.centerChunk(options.centerLongitude(), options.centerLatitude());
+        }
+        return preview.defaultCenterChunk();
     }
 }

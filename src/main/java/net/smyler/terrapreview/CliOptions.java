@@ -1,5 +1,7 @@
 package net.smyler.terrapreview;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.NoSuchElementException;
 
 /**
@@ -7,58 +9,120 @@ import java.util.NoSuchElementException;
  *
  * @param port the port the web server listens on
  * @param projection the name of the map projection to use
+ * @param centerLongitude the longitude of the initial map center, in degrees, or null for the default
+ * @param centerLatitude the latitude of the initial map center, in degrees, or null for the default
+ * @param centerX the Minecraft block x coordinate of the initial map center, or null for the default
+ * @param centerZ the Minecraft block z coordinate of the initial map center, or null for the default
  */
-public record CliOptions(int port, String projection) {
+public record CliOptions(
+        int port, String projection, Double centerLongitude, Double centerLatitude, Double centerX, Double centerZ) {
     /**
      * The default options, used when no flag is given.
      */
-    public static final CliOptions DEFAULT = new CliOptions(PreviewWebServer.DEFAULT_PORT, Projections.BTE);
+    public static final CliOptions DEFAULT =
+            new CliOptions(PreviewWebServer.DEFAULT_PORT, Projections.BTE, null, null, null, null);
 
     private static final String PORT_FLAG = "--port";
+    private static final String PORT_SHORT_FLAG = "-p";
     private static final String PROJECTION_FLAG = "--projection";
+    private static final String PROJECTION_SHORT_FLAG = "-P";
+    private static final String CENTER_LON_FLAG = "--center-lon";
+    private static final String CENTER_LAT_FLAG = "--center-lat";
+    private static final String CENTER_X_FLAG = "--center-x";
+    private static final String CENTER_Z_FLAG = "--center-z";
+
     private static final int MIN_PORT = 1;
     private static final int MAX_PORT = 65535;
+    private static final double MIN_LONGITUDE = -180.0D;
+    private static final double MAX_LONGITUDE = 180.0D;
+    private static final double MIN_LATITUDE = -90.0D;
+    private static final double MAX_LATITUDE = 90.0D;
 
     /**
      * Parses the command line arguments into options.
      *
-     * <p>Recognized flags: {@code --port <port>} (or {@code -p}, {@code --port=<port>})
-     * and {@code --projection <name>} (or {@code -P}, {@code --projection=<name>}).
+     * <p>Every flag accepts its value either as the next argument or after an equals sign,
+     * as in {@code --port=9090}. The initial map center can be given either in geographic
+     * coordinates with {@code --center-lon} and {@code --center-lat}, or in Minecraft block
+     * coordinates with {@code --center-x} and {@code --center-z}, but not both.
      *
      * @param args the command line arguments
      * @return the parsed options, with defaults for absent flags
      * @throws NoSuchElementException when a flag is given without a value
-     * @throws IllegalArgumentException when a value is invalid or an unknown flag is given
+     * @throws IllegalArgumentException when a value is invalid, a center is incomplete or an unknown flag is given
      */
     public static CliOptions parse(String[] args) {
         int port = DEFAULT.port();
         String projection = DEFAULT.projection();
+        Double centerLongitude = null;
+        Double centerLatitude = null;
+        Double centerX = null;
+        Double centerZ = null;
+        List<String> arguments = normalize(args);
         int i = 0;
-        while (i < args.length) {
-            String arg = args[i];
-            if (PORT_FLAG.equals(arg) || "-p".equals(arg)) {
-                i += 1;
-                port = parsePortValue(valueOf(args, arg, i));
-            } else if (arg.startsWith(PORT_FLAG + '=')) {
-                port = parsePortValue(arg.substring(PORT_FLAG.length() + 1));
-            } else if (PROJECTION_FLAG.equals(arg) || "-P".equals(arg)) {
-                i += 1;
-                projection = valueOf(args, arg, i);
-            } else if (arg.startsWith(PROJECTION_FLAG + '=')) {
-                projection = arg.substring(PROJECTION_FLAG.length() + 1);
-            } else {
-                throw new IllegalArgumentException("Unknown argument: " + arg);
+        while (i < arguments.size()) {
+            String flag = arguments.get(i);
+            if (!isKnownFlag(flag)) {
+                throw new IllegalArgumentException("Unknown argument: " + flag);
             }
-            i += 1;
+            String value = valueOf(arguments, flag, i + 1);
+            i += 2;
+            switch (flag) {
+                case PORT_FLAG, PORT_SHORT_FLAG -> port = parsePortValue(value);
+                case PROJECTION_FLAG, PROJECTION_SHORT_FLAG -> projection = value;
+                case CENTER_LON_FLAG -> centerLongitude = parseLongitude(value);
+                case CENTER_LAT_FLAG -> centerLatitude = parseLatitude(value);
+                case CENTER_X_FLAG -> centerX = parseCoordinate(value);
+                case CENTER_Z_FLAG -> centerZ = parseCoordinate(value);
+                default -> throw new IllegalArgumentException("Unknown argument: " + flag);
+            }
         }
-        return new CliOptions(port, projection);
+        if ((centerLongitude == null) != (centerLatitude == null)) {
+            throw new IllegalArgumentException(CENTER_LON_FLAG + " and " + CENTER_LAT_FLAG + " must be given together");
+        }
+        if ((centerX == null) != (centerZ == null)) {
+            throw new IllegalArgumentException(CENTER_X_FLAG + " and " + CENTER_Z_FLAG + " must be given together");
+        }
+        if (centerLongitude != null && centerX != null) {
+            throw new IllegalArgumentException(
+                    "The center can be given either in geographic or in Minecraft coordinates, not both");
+        }
+        return new CliOptions(port, projection, centerLongitude, centerLatitude, centerX, centerZ);
     }
 
-    private static String valueOf(String[] args, String flag, int valueIndex) {
-        if (valueIndex >= args.length) {
+    private static boolean isKnownFlag(String flag) {
+        return switch (flag) {
+            case PORT_FLAG,
+                    PORT_SHORT_FLAG,
+                    PROJECTION_FLAG,
+                    PROJECTION_SHORT_FLAG,
+                    CENTER_LON_FLAG,
+                    CENTER_LAT_FLAG,
+                    CENTER_X_FLAG,
+                    CENTER_Z_FLAG -> true;
+            default -> false;
+        };
+    }
+
+    private static List<String> normalize(String[] args) {
+        List<String> arguments = new ArrayList<>(args.length);
+        for (String arg : args) {
+            int separator = arg.indexOf('=');
+            if (arg.startsWith("--") && separator > 0) {
+                arguments.add(arg.substring(0, separator));
+                arguments.add(arg.substring(separator + 1));
+            } else {
+                arguments.add(arg);
+            }
+        }
+        return arguments;
+    }
+
+    private static String valueOf(List<String> arguments, String flag, int valueIndex) {
+        if (valueIndex >= arguments.size()) {
             throw new NoSuchElementException("Missing value for " + flag);
         }
-        return args[valueIndex];
+        return arguments.get(valueIndex);
     }
 
     private static int parsePortValue(String value) {
@@ -72,5 +136,29 @@ public record CliOptions(int port, String projection) {
             throw new IllegalArgumentException("Port out of range: " + port);
         }
         return port;
+    }
+
+    private static double parseLongitude(String value) {
+        double longitude = parseCoordinate(value);
+        if (longitude < MIN_LONGITUDE || longitude > MAX_LONGITUDE) {
+            throw new IllegalArgumentException("Longitude out of range: " + longitude);
+        }
+        return longitude;
+    }
+
+    private static double parseLatitude(String value) {
+        double latitude = parseCoordinate(value);
+        if (latitude < MIN_LATITUDE || latitude > MAX_LATITUDE) {
+            throw new IllegalArgumentException("Latitude out of range: " + latitude);
+        }
+        return latitude;
+    }
+
+    private static double parseCoordinate(String value) {
+        try {
+            return Double.parseDouble(value);
+        } catch (NumberFormatException _) {
+            throw new IllegalArgumentException("Invalid coordinate: " + value);
+        }
     }
 }
