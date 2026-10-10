@@ -125,6 +125,29 @@ public final class EarthPreview implements Preview {
         return this.geoToChunk(DEFAULT_LONGITUDE, DEFAULT_LATITUDE);
     }
 
+    /**
+     * Returns the chunk coordinates of the map center for the given geographic location.
+     *
+     * @param longitude the longitude of the center, in degrees
+     * @param latitude the latitude of the center, in degrees
+     * @return a two-element array of the center chunk coordinates, x then z
+     * @throws IllegalArgumentException when the location is outside the projection bounds
+     */
+    public double[] centerChunk(double longitude, double latitude) {
+        return this.geoToChunk(longitude, latitude);
+    }
+
+    /**
+     * Returns the chunk coordinates of the map center for the given Minecraft block coordinates.
+     *
+     * @param x the block x coordinate of the center
+     * @param z the block z coordinate of the center
+     * @return a two-element array of the center chunk coordinates, x then z
+     */
+    public static double[] centerChunkOfBlock(double x, double z) {
+        return new double[] {Math.floor(x / CHUNK_SIZE), Math.floor(z / CHUNK_SIZE)};
+    }
+
     private double[] geoToChunk(double longitude, double latitude) {
         GeographicProjection projection = this.settings.projection();
         double[] worldPos;

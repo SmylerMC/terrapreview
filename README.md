@@ -83,6 +83,15 @@ Two shorthands are recognized:
 
 Any other name is resolved as a Terra-- projection type, e.g. `equirectangular`, `sinusoidal`, `web_mercator` or `bte_conformal_dymaxion`. An unknown name is rejected with an error message.
 
+The initial map center can be chosen either in geographic coordinates or in Minecraft block coordinates:
+
+```sh
+./gradlew run --args="--center-lon 2.2890 --center-lat 48.8620"
+./gradlew run --args="--center-x 1000 --center-z -2000"
+```
+
+The flags also accept the `--center-lon=<longitude>` form. Longitude and latitude must be valid degrees (-180/180 and -90/90); a geographic center is converted to Minecraft coordinates using the selected projection. The two forms cannot be mixed. By default the map is centered on the Trocadero, Paris.
+
 ## Live-reloaded configuration
 
 Terraminusminus resolves external configuration from a config root directory (default: `./terraminusminus/config`, configurable at runtime via `Disk#setConfigRoot`). Terrapreview watches this directory and rebuilds the generator, then live-reloads the web UI, whenever any of the following files change:
