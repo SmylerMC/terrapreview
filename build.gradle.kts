@@ -20,6 +20,8 @@ repositories {
 
 dependencies {
     implementation("net.buildtheearth.terraminusminus:terraminusminus-core:2.2.0-1.21.8")
+    implementation("com.google.code.gson:gson:2.14.0")
+    compileOnly("com.github.spotbugs:spotbugs-annotations:4.9.6")
     compileOnly("com.google.guava:guava:33.3.1-jre")
     compileOnly("org.projectlombok:lombok:1.18.42")
     compileOnly("net.daporkchop.lib:binary:0.5.7-SNAPSHOT")
