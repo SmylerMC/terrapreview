@@ -30,4 +30,11 @@ class TerraIntegrationTest {
         var loggerConfig = context.getConfiguration().getLoggerConfig("terra--");
         assertTrue(loggerConfig.getLevel().isLessSpecificThan(Level.INFO));
     }
+
+    @Test
+    void terrapreviewLoggerIsConfiguredForInfoLogging() {
+        LoggerContext context = (LoggerContext) LogManager.getContext(false);
+        var loggerConfig = context.getConfiguration().getLoggerConfig("net.smyler.terrapreview");
+        assertTrue(loggerConfig.getLevel().isLessSpecificThan(Level.INFO));
+    }
 }

@@ -2,11 +2,15 @@ package net.smyler.terrapreview;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * Entry point of the TerraPreview application.
  */
 public final class TerraPreview {
+
+    private static final Logger LOGGER = LogManager.getLogger(TerraPreview.class);
 
     private TerraPreview() {}
 
@@ -40,13 +44,13 @@ public final class TerraPreview {
         EarthPreview preview = new EarthPreview();
         PreviewWebServer server = new PreviewWebServer(preview, preview.defaultCenterChunk());
         server.start();
-        System.out.printf("TerraPreview web server listening on http://localhost:%d/%n", PreviewWebServer.PORT);
+        LOGGER.info("TerraPreview web server listening on http://localhost:{}/", PreviewWebServer.PORT);
 
         ConfigWatcher watcher = new ConfigWatcher(CONFIG_ROOT, () -> {
-            System.out.println("Configuration change detected, updating the rendering engine...");
+            LOGGER.info("Configuration change detected, updating the rendering engine...");
             server.setPreview(new EarthPreview());
         });
         watcher.start();
-        System.out.printf("Watching %s for configuration changes%n", CONFIG_ROOT);
+        LOGGER.info("Watching {} for configuration changes", CONFIG_ROOT);
     }
 }
