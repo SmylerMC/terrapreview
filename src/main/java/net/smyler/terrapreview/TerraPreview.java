@@ -36,6 +36,7 @@ public final class TerraPreview {
      * @throws IOException if the web server cannot be started
      */
     public static void main(String[] args) throws IOException {
+        TerraIntegration.setup();
         EarthPreview preview = new EarthPreview();
         PreviewWebServer server = new PreviewWebServer(preview, preview.defaultCenterChunk());
         server.start();
