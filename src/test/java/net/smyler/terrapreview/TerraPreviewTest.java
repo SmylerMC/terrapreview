@@ -1,6 +1,7 @@
 package net.smyler.terrapreview;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.awt.Color;
@@ -29,12 +30,12 @@ class TerraPreviewTest {
     private static final long TIMEOUT_NANOS =
             Duration.ofSeconds(TIMEOUT_SECONDS).toNanos();
 
-    private static final BufferedImage STUB_IMAGE = new BufferedImage(4, 2, BufferedImage.TYPE_INT_RGB);
+    private static final BufferedImage STUB_TILE = new BufferedImage(4, 2, BufferedImage.TYPE_INT_RGB);
 
     private static final String BASE_URL = "http://localhost:" + PreviewWebServer.PORT;
 
     static {
-        STUB_IMAGE.setRGB(0, 0, Color.RED.getRGB());
+        STUB_TILE.setRGB(0, 0, Color.RED.getRGB());
     }
 
     @Test
@@ -43,16 +44,13 @@ class TerraPreviewTest {
     }
 
     @Test
-    void gridIsSquareAndGreaterThanOneChunk() {
-        assertTrue(EarthPreview.GRID_SIZE > 1);
-        assertEquals(
-                EarthPreview.GRID_SIZE * EarthPreview.GRID_SIZE,
-                Math.multiplyExact(EarthPreview.GRID_SIZE, EarthPreview.GRID_SIZE));
+    void chunkTilesAreSquareAndChunkSized() {
+        assertEquals(EarthPreview.CHUNK_SIZE * EarthPreview.PIXELS_PER_BLOCK, EarthPreview.TILE_SIZE);
     }
 
     @Test
     void webServerServesPreviewPage() throws IOException, InterruptedException {
-        PreviewWebServer server = new PreviewWebServer((_, _) -> STUB_IMAGE);
+        PreviewWebServer server = new PreviewWebServer((_, _, _) -> STUB_TILE);
         server.start();
         try {
             HttpResponse<String> response = this.get(BASE_URL + "/", HttpResponse.BodyHandlers.ofString());
@@ -61,24 +59,26 @@ class TerraPreviewTest {
                     "text/html; charset=utf-8",
                     response.headers().firstValue("Content-Type").orElseThrow());
             assertEquals(server.previewPage(), response.body());
-            assertTrue(response.body().contains("<img src=\"/preview\" alt=\"Earth preview\">"));
+            assertTrue(response.body().contains("L.map('map'"));
+            assertTrue(response.body().contains("unpkg.com/leaflet@1.9.4"));
         } finally {
             server.stop();
         }
     }
 
     @Test
-    void previewEndpointServesPngImage() throws IOException, InterruptedException {
-        PreviewWebServer server = new PreviewWebServer((_, _) -> STUB_IMAGE);
+    void tileEndpointServesPngImage() throws IOException, InterruptedException {
+        PreviewWebServer server = new PreviewWebServer((_, _, _) -> STUB_TILE);
         server.start();
         try {
-            HttpResponse<byte[]> response = this.get(BASE_URL + "/preview", HttpResponse.BodyHandlers.ofByteArray());
+            HttpResponse<byte[]> response =
+                    this.get(BASE_URL + "/tiles/0/3/-7.png", HttpResponse.BodyHandlers.ofByteArray());
             assertEquals(HttpURLConnection.HTTP_OK, response.statusCode());
             assertEquals(
                     "image/png", response.headers().firstValue("Content-Type").orElseThrow());
             BufferedImage image = ImageIO.read(new ByteArrayInputStream(response.body()));
-            assertEquals(STUB_IMAGE.getWidth(), image.getWidth());
-            assertEquals(STUB_IMAGE.getHeight(), image.getHeight());
+            assertEquals(STUB_TILE.getWidth(), image.getWidth());
+            assertEquals(STUB_TILE.getHeight(), image.getHeight());
             assertEquals(Color.RED.getRGB(), image.getRGB(0, 0));
         } finally {
             server.stop();
@@ -86,17 +86,40 @@ class TerraPreviewTest {
     }
 
     @Test
+    void tileEndpointRejectsNonTilePaths() throws IOException, InterruptedException {
+        PreviewWebServer server = new PreviewWebServer((_, _, _) -> STUB_TILE);
+        server.start();
+        try {
+            HttpResponse<String> response =
+                    this.get(BASE_URL + "/tiles/0/not-a-tile.png", HttpResponse.BodyHandlers.ofString());
+            assertEquals(HttpURLConnection.HTTP_NOT_FOUND, response.statusCode());
+        } finally {
+            server.stop();
+        }
+    }
+
+    @Test
+    void previewPageLocksZoomAndUsesChunkTiles() {
+        PreviewWebServer server = new PreviewWebServer((_, _, _) -> STUB_TILE);
+        String page = server.previewPage();
+        assertTrue(page.contains("minZoom: -2"));
+        assertTrue(page.contains("maxZoom: 3"));
+        assertTrue(page.contains("tileSize: TILE_SIZE"));
+        assertTrue(page.contains("'/tiles/' + coords.z + '/' + coords.x + '/' + coords.y + '.png?v=' + tileVersion"));
+    }
+
+    @Test
     void servedPageListensForServerSentEvents() {
-        PreviewWebServer server = new PreviewWebServer((_, _) -> STUB_IMAGE);
+        PreviewWebServer server = new PreviewWebServer((_, _, _) -> STUB_TILE);
         String page = server.previewPage();
         assertTrue(page.contains("new EventSource('/events')"));
-        assertTrue(page.contains("document.querySelector('img').src"));
-        assertTrue(page.contains("'/preview?v=' + event.data"));
+        assertTrue(page.contains("tileLayers.push(layer)"));
+        assertTrue(page.contains("map.removeLayer(tileLayers.shift())"));
     }
 
     @Test
     void eventStreamNotifiesOnPreviewChange() throws IOException, InterruptedException {
-        PreviewWebServer server = new PreviewWebServer((_, _) -> STUB_IMAGE);
+        PreviewWebServer server = new PreviewWebServer((_, _, _) -> STUB_TILE);
         server.start();
         CountDownLatch connected = new CountDownLatch(1);
         CountDownLatch reloaded = new CountDownLatch(1);
@@ -123,7 +146,7 @@ class TerraPreviewTest {
         reader.start();
         try {
             assertTrue(connected.await(TIMEOUT_NANOS, TimeUnit.NANOSECONDS), "event stream did not open");
-            server.setPreview((_, _) -> STUB_IMAGE);
+            server.setPreview((_, _, _) -> STUB_TILE);
             assertTrue(reloaded.await(TIMEOUT_NANOS, TimeUnit.NANOSECONDS), "no event was received");
             assertEquals("data: 1", event.get());
         } finally {
@@ -132,8 +155,8 @@ class TerraPreviewTest {
     }
 
     @Test
-    void blockColorTableIsNotEmpty() {
-        assertTrue(!EarthPreview.BLOCK_COLORS.isEmpty());
+    void defaultCenterChunkIsWithinTheProjectedWorld() {
+        assertNotNull(new EarthPreview().defaultCenterChunk());
     }
 
     private <T> HttpResponse<T> get(String url, HttpResponse.BodyHandler<T> bodyHandler)
