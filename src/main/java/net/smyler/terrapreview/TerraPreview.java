@@ -30,13 +30,14 @@ public final class TerraPreview {
     }
 
     /**
-     * Starts the web server serving the earth preview image and watches the configuration directory.
+     * Starts the web server serving the interactive earth preview map and watches the configuration directory.
      *
      * @param args the command line arguments, ignored for now
      * @throws IOException if the web server cannot be started
      */
     public static void main(String[] args) throws IOException {
-        PreviewWebServer server = new PreviewWebServer(new EarthPreview());
+        EarthPreview preview = new EarthPreview();
+        PreviewWebServer server = new PreviewWebServer(preview, preview.defaultCenterChunk());
         server.start();
         System.out.printf("TerraPreview web server listening on http://localhost:%d/%n", PreviewWebServer.PORT);
 

@@ -17,18 +17,13 @@ import net.buildtheearth.terraminusminus.substitutes.ChunkPos;
 import net.buildtheearth.terraminusminus.util.http.Http;
 
 /**
- * Generates a grid of earth chunks around a geographic location and renders it as an image.
+ * Generates earth chunks and renders them as image tiles, one tile per chunk.
  */
 public final class EarthPreview implements Preview {
     /**
-     * The number of chunks along each axis of the generated grid.
-     */
-    public static final int GRID_SIZE = 8;
-
-    /**
      * The side length of a chunk, in blocks.
      */
-    private static final int CHUNK_SIZE = 16;
+    public static final int CHUNK_SIZE = 16;
 
     /**
      * The number of bits to shift a block coordinate to get its chunk coordinate.
@@ -36,17 +31,27 @@ public final class EarthPreview implements Preview {
     private static final int CHUNK_SHIFT = 4;
 
     /**
+     * The bitmask of the position of a block within its chunk.
+     */
+    private static final int CHUNK_MASK = CHUNK_SIZE - 1;
+
+    /**
      * The number of image pixels used to render a single block.
      */
     public static final int PIXELS_PER_BLOCK = 16;
 
     /**
-     * The default longitude of the grid center: the Trocadero, Paris.
+     * The side length of a chunk tile, in pixels.
+     */
+    public static final int TILE_SIZE = CHUNK_SIZE * PIXELS_PER_BLOCK;
+
+    /**
+     * The default longitude of the initial map center: the Trocadero, Paris.
      */
     public static final double DEFAULT_LONGITUDE = 2.2890;
 
     /**
-     * The default latitude of the grid center: the Trocadero, Paris.
+     * The default latitude of the initial map center: the Trocadero, Paris.
      */
     public static final double DEFAULT_LATITUDE = 48.8620;
 
@@ -87,6 +92,7 @@ public final class EarthPreview implements Preview {
     private static final long CACHE_EXPIRY_MINUTES = 5L;
 
     private final EarthGeneratorSettings settings;
+
     private final LoadingCache<ChunkPos, CompletableFuture<CachedChunkData>> cache;
 
     /**
@@ -111,14 +117,15 @@ public final class EarthPreview implements Preview {
     }
 
     /**
-     * Generates a grid of chunks around the given location and renders it as an image.
+     * Returns the chunk coordinates of the default map center.
      *
-     * @param longitude the longitude of the grid center
-     * @param latitude the latitude of the grid center
-     * @return the image representation of the chunk grid
+     * @return a two-element array of the center chunk coordinates, x then z
      */
-    @Override
-    public BufferedImage render(double longitude, double latitude) {
+    public double[] defaultCenterChunk() {
+        return this.geoToChunk(DEFAULT_LONGITUDE, DEFAULT_LATITUDE);
+    }
+
+    private double[] geoToChunk(double longitude, double latitude) {
         GeographicProjection projection = this.settings.projection();
         double[] worldPos;
         try {
@@ -126,30 +133,36 @@ public final class EarthPreview implements Preview {
         } catch (OutOfProjectionBoundsException e) {
             throw new IllegalArgumentException("Location is outside the projection bounds", e);
         }
-        int centerChunkX = (int) Math.round(worldPos[0]) >> CHUNK_SHIFT;
-        int centerChunkZ = (int) Math.round(worldPos[1]) >> CHUNK_SHIFT;
-        int half = GRID_SIZE / 2;
-        CachedChunkData[][] chunks = new CachedChunkData[GRID_SIZE][GRID_SIZE];
-        for (int cx = 0; cx < GRID_SIZE; cx++) {
-            for (int cz = 0; cz < GRID_SIZE; cz++) {
-                ChunkPos pos = new ChunkPos(centerChunkX - half + cx, centerChunkZ - half + cz);
-                chunks[cx][cz] = this.cache.getUnchecked(pos).join();
-            }
-        }
-        return this.toImage(chunks);
+        return new double[] {Math.floor(worldPos[0] / CHUNK_SIZE), Math.floor(worldPos[1] / CHUNK_SIZE)};
     }
 
-    private BufferedImage toImage(CachedChunkData[][] chunks) {
-        int blocks = GRID_SIZE * CHUNK_SIZE;
-        BufferedImage image =
-                new BufferedImage(blocks * PIXELS_PER_BLOCK, blocks * PIXELS_PER_BLOCK, BufferedImage.TYPE_INT_RGB);
+    /**
+     * Renders the tile at the given zoom level and tile coordinates as an image.
+     *
+     * @param zoom the zoom level, 0 being one chunk per tile
+     * @param tileX the x coordinate of the tile, in tile units at the given zoom
+     * @param tileZ the z coordinate of the tile, in tile units at the given zoom
+     * @return the image tile
+     */
+    @Override
+    public BufferedImage renderTile(int zoom, int tileX, int tileZ) {
+        int scale = 1 << Math.abs(zoom);
+        int blocksPerTile = zoom >= 0 ? CHUNK_SIZE / scale : CHUNK_SIZE * scale;
+        int pixelsPerBlock = zoom >= 0 ? PIXELS_PER_BLOCK * scale : PIXELS_PER_BLOCK / scale;
+        BufferedImage image = new BufferedImage(TILE_SIZE, TILE_SIZE, BufferedImage.TYPE_INT_RGB);
         Graphics2D graphics = image.createGraphics();
         try {
-            for (int z = 0; z < blocks; z++) {
-                for (int x = 0; x < blocks; x++) {
-                    CachedChunkData chunk = chunks[x / CHUNK_SIZE][z / CHUNK_SIZE];
-                    graphics.setColor(colorOf(chunk, x % CHUNK_SIZE, z % CHUNK_SIZE));
-                    graphics.fillRect(x * PIXELS_PER_BLOCK, z * PIXELS_PER_BLOCK, PIXELS_PER_BLOCK, PIXELS_PER_BLOCK);
+            for (int z = 0; z < blocksPerTile; z++) {
+                for (int x = 0; x < blocksPerTile; x++) {
+                    int blockX = tileX * blocksPerTile + x;
+                    int blockZ = tileZ * blocksPerTile + z;
+                    int chunkX = blockX >> CHUNK_SHIFT;
+                    int chunkZ = blockZ >> CHUNK_SHIFT;
+                    CachedChunkData chunk = this.cache
+                            .getUnchecked(new ChunkPos(chunkX, chunkZ))
+                            .join();
+                    graphics.setColor(colorOf(chunk, blockX & CHUNK_MASK, blockZ & CHUNK_MASK));
+                    graphics.fillRect(x * pixelsPerBlock, z * pixelsPerBlock, pixelsPerBlock, pixelsPerBlock);
                 }
             }
         } finally {
