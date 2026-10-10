@@ -45,6 +45,8 @@ class TerraPreviewTest {
 
     private static final String[] PORT_ARGS = {PORT_FLAG, String.valueOf(TEST_PORT)};
 
+    private static final String PROJECTION_FLAG = "--projection";
+
     static {
         STUB_TILE.setRGB(0, 0, Color.RED.getRGB());
     }
@@ -55,44 +57,81 @@ class TerraPreviewTest {
     }
 
     @Test
-    void parsePortDefaultsTo8080() {
-        assertEquals(PreviewWebServer.DEFAULT_PORT, TerraPreview.parsePort(new String[0]));
+    void optionsDefaultToPort8080AndBteProjection() {
+        assertEquals(CliOptions.DEFAULT, CliOptions.parse(new String[0]));
     }
 
     @Test
-    void parsePortAcceptsLongForm() {
-        assertEquals(TEST_PORT, TerraPreview.parsePort(PORT_ARGS));
+    void optionsAcceptPortInLongForm() {
+        assertEquals(TEST_PORT, CliOptions.parse(PORT_ARGS).port());
     }
 
     @Test
-    void parsePortAcceptsEqualsForm() {
-        assertEquals(TEST_PORT, TerraPreview.parsePort(new String[] {PORT_FLAG + "=" + TEST_PORT}));
+    void optionsAcceptPortInEqualsForm() {
+        assertEquals(
+                TEST_PORT,
+                CliOptions.parse(new String[] {PORT_FLAG + "=" + TEST_PORT}).port());
     }
 
     @Test
-    void parsePortAcceptsShortForm() {
-        assertEquals(TEST_PORT, TerraPreview.parsePort(new String[] {"-p", String.valueOf(TEST_PORT)}));
+    void optionsAcceptPortInShortForm() {
+        assertEquals(
+                TEST_PORT,
+                CliOptions.parse(new String[] {"-p", String.valueOf(TEST_PORT)}).port());
     }
 
     @Test
-    void parsePortRejectsNonNumericValues() {
-        assertThrows(IllegalArgumentException.class, () -> TerraPreview.parsePort(new String[] {PORT_FLAG, "abc"}));
+    void optionsAcceptProjectionInLongForm() {
+        assertEquals(
+                Projections.TERRA_PLUS_PLUS,
+                CliOptions.parse(new String[] {PROJECTION_FLAG, Projections.TERRA_PLUS_PLUS})
+                        .projection());
     }
 
     @Test
-    void parsePortRejectsOutOfRangeValues() {
-        assertThrows(IllegalArgumentException.class, () -> TerraPreview.parsePort(new String[] {PORT_FLAG, "0"}));
-        assertThrows(IllegalArgumentException.class, () -> TerraPreview.parsePort(new String[] {PORT_FLAG, "99999"}));
+    void optionsAcceptProjectionInEqualsForm() {
+        assertEquals(
+                "equirectangular",
+                CliOptions.parse(new String[] {PROJECTION_FLAG + "=equirectangular"})
+                        .projection());
     }
 
     @Test
-    void parsePortRejectsMissingValue() {
-        assertThrows(NoSuchElementException.class, () -> TerraPreview.parsePort(new String[] {PORT_FLAG}));
+    void optionsAcceptProjectionInShortForm() {
+        assertEquals(
+                Projections.TERRA_PLUS_PLUS,
+                CliOptions.parse(new String[] {"-P", Projections.TERRA_PLUS_PLUS})
+                        .projection());
     }
 
     @Test
-    void parsePortRejectsUnknownArguments() {
-        assertThrows(IllegalArgumentException.class, () -> TerraPreview.parsePort(new String[] {"--unknown"}));
+    void optionsAcceptPortAndProjectionTogether() {
+        CliOptions options = CliOptions.parse(
+                new String[] {PORT_FLAG, String.valueOf(TEST_PORT), PROJECTION_FLAG, Projections.TERRA_PLUS_PLUS});
+        assertEquals(TEST_PORT, options.port());
+        assertEquals(Projections.TERRA_PLUS_PLUS, options.projection());
+    }
+
+    @Test
+    void optionsRejectNonNumericPortValues() {
+        assertThrows(IllegalArgumentException.class, () -> CliOptions.parse(new String[] {PORT_FLAG, "abc"}));
+    }
+
+    @Test
+    void optionsRejectOutOfRangePortValues() {
+        assertThrows(IllegalArgumentException.class, () -> CliOptions.parse(new String[] {PORT_FLAG, "0"}));
+        assertThrows(IllegalArgumentException.class, () -> CliOptions.parse(new String[] {PORT_FLAG, "99999"}));
+    }
+
+    @Test
+    void optionsRejectMissingFlagValues() {
+        assertThrows(NoSuchElementException.class, () -> CliOptions.parse(new String[] {PORT_FLAG}));
+        assertThrows(NoSuchElementException.class, () -> CliOptions.parse(new String[] {PROJECTION_FLAG}));
+    }
+
+    @Test
+    void optionsRejectUnknownArguments() {
+        assertThrows(IllegalArgumentException.class, () -> CliOptions.parse(new String[] {"--unknown"}));
     }
 
     @Test
