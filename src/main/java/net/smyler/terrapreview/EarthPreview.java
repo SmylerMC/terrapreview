@@ -116,7 +116,6 @@ public final class EarthPreview implements Preview {
             }
             art.append(row).append('\n');
         }
-        art.append("\nLegend: ~ water  T tree  # bricks  \u2593 concrete/stone  = road/path");
         return art.toString();
     }
 
