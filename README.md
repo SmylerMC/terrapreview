@@ -68,6 +68,21 @@ The listen port of the web server can be changed with the `--port` (or `-p`) fla
 
 The flag also accepts the `--port=9090` form. The port must be a number between 1 and 65535; the default is 8080.
 
+The map projection can be selected with the `--projection` (or `-P`) flag:
+
+```sh
+./gradlew run --args="--projection terra++"
+```
+
+Two shorthands are recognized:
+
+| Name | Projection |
+| --- | --- |
+| `bte` (default) | The Build The Earth conformal dymaxion projection Terra-- uses by default |
+| `terra++` | The default Terra-- projection (scaled equirectangular) |
+
+Any other name is resolved as a Terra-- projection type, e.g. `equirectangular`, `sinusoidal`, `web_mercator` or `bte_conformal_dymaxion`. An unknown name is rejected with an error message.
+
 ## Live-reloaded configuration
 
 Terraminusminus resolves external configuration from a config root directory (default: `./terraminusminus/config`, configurable at runtime via `Disk#setConfigRoot`). Terrapreview watches this directory and rebuilds the generator, then live-reloads the web UI, whenever any of the following files change:
