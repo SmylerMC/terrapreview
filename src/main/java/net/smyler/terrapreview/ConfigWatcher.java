@@ -16,11 +16,15 @@ import java.nio.file.WatchService;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * Watches the terraminusminus configuration directory for modifications.
  */
 public final class ConfigWatcher {
+
+    private static final Logger LOGGER = LogManager.getLogger(ConfigWatcher.class);
 
     /**
      * How long to wait after the last file change before notifying the listener.
@@ -79,7 +83,7 @@ public final class ConfigWatcher {
                 Thread.currentThread().interrupt();
                 return;
             } catch (IOException e) {
-                System.err.println("Failed to watch configuration directory: " + e.getMessage());
+                LOGGER.error("Failed to watch configuration directory", e);
                 return;
             }
         }
