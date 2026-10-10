@@ -77,9 +77,9 @@ public final class ConfigWatcher {
                 this.handleKey(this.watchService.take());
                 this.waitForQuietPeriod();
                 this.onChange.run();
-            } catch (ClosedWatchServiceException _) {
+            } catch (ClosedWatchServiceException e) {
                 return;
-            } catch (InterruptedException _) {
+            } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 return;
             } catch (IOException e) {
