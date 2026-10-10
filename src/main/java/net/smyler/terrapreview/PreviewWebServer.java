@@ -8,6 +8,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.net.HttpURLConnection;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.Executors;
@@ -25,6 +26,10 @@ public final class PreviewWebServer {
      */
     public static final int DEFAULT_PORT = 8080;
 
+    /**
+     * A port value requesting an ephemeral port, assigned by the operating system on start.
+     */
+    public static final int ANY_PORT = 0;
     /**
      * The lowest leaflet zoom level, two unzoom levels below the native chunk pixel size.
      */
@@ -52,6 +57,8 @@ public final class PreviewWebServer {
     private final double[] centerChunk;
 
     private final int port;
+
+    private volatile int boundPort;
 
     private final AtomicLong version = new AtomicLong();
     private final Object versionChangeMonitor = new Object();
@@ -93,10 +100,13 @@ public final class PreviewWebServer {
     /**
      * Returns the port the web server listens on.
      *
+     * <p>When constructed with {@value #ANY_PORT}, this returns that value until the server is started,
+     * then the ephemeral port assigned by the operating system.
+     *
      * @return the listening port
      */
     public int port() {
-        return this.port;
+        return this.boundPort != 0 ? this.boundPort : this.port;
     }
 
     /**
@@ -128,7 +138,8 @@ public final class PreviewWebServer {
      */
     public void start() throws IOException {
         this.running = true;
-        this.server = HttpServer.create(new InetSocketAddress(this.port), 0);
+        this.server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), this.port), 0);
+        this.boundPort = this.server.getAddress().getPort();
         this.server.setExecutor(Executors.newCachedThreadPool(
                 Thread.ofPlatform().daemon().name("terrapreview-server-").factory()));
         this.server.createContext("/events", this::serveEvents);
@@ -251,7 +262,7 @@ public final class PreviewWebServer {
                 out.write(("data: " + sentVersion + "\n\n").getBytes(StandardCharsets.UTF_8));
                 out.flush();
             }
-        } catch (InterruptedException _) {
+        } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
     }
