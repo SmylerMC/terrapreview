@@ -73,7 +73,6 @@
         <module name="UnnecessarySemicolonInEnumeration"/>
         <module name="UnnecessarySemicolonInTryWithResources"/>
         <module name="UnnecessaryTypeArgumentsWithRecordPattern"/>
-        <module name="UnusedCatchParameterShouldBeUnnamed"/>
         <module name="UnusedLambdaParameterShouldBeUnnamed"/>
         <module name="UnusedPrivateField"/>
         <module name="UnusedTryResourceShouldBeUnnamed"/>

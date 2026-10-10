@@ -159,7 +159,7 @@ public record CliOptions(
         int port;
         try {
             port = Integer.parseInt(value);
-        } catch (NumberFormatException _) {
+        } catch (NumberFormatException e) {
             throw new IllegalArgumentException("Invalid port: " + value);
         }
         if (port < MIN_PORT || port > MAX_PORT) {
@@ -187,7 +187,7 @@ public record CliOptions(
     private static double parseCoordinate(String value) {
         try {
             return Double.parseDouble(value);
-        } catch (NumberFormatException _) {
+        } catch (NumberFormatException e) {
             throw new IllegalArgumentException("Invalid coordinate: " + value);
         }
     }

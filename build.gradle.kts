@@ -1,5 +1,5 @@
 plugins {
-    java
+    `java-library`
     application
     checkstyle
 
@@ -19,7 +19,7 @@ repositories {
 }
 
 dependencies {
-    implementation("net.buildtheearth.terraminusminus:terraminusminus-core:2.2.0-1.21.8")
+    api("net.buildtheearth.terraminusminus:terraminusminus-core:2.2.0-1.21.8")
     implementation("com.google.code.gson:gson:2.14.0")
     compileOnly("com.github.spotbugs:spotbugs-annotations:4.9.6")
     compileOnly("com.google.guava:guava:33.3.1-jre")
@@ -39,6 +39,10 @@ java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(25)
     }
+}
+
+tasks.named<JavaCompile>("compileJava") {
+    options.release = 21
 }
 
 application {
