@@ -9,6 +9,8 @@ import java.util.NoSuchElementException;
  *
  * @param port the port the web server listens on
  * @param projection the name of the map projection to use
+ * @param mcVersion the version of the Minecraft client to load block textures from,
+ *                  or null for the latest release
  * @param centerLongitude the longitude of the initial map center, in degrees, or null for the default
  * @param centerLatitude the latitude of the initial map center, in degrees, or null for the default
  * @param centerX the Minecraft block x coordinate of the initial map center, or null for the default
@@ -19,6 +21,7 @@ import java.util.NoSuchElementException;
 public record CliOptions(
         int port,
         String projection,
+        String mcVersion,
         Double centerLongitude,
         Double centerLatitude,
         Double centerX,
@@ -28,12 +31,13 @@ public record CliOptions(
      * The default options, used when no flag is given.
      */
     public static final CliOptions DEFAULT =
-            new CliOptions(PreviewWebServer.DEFAULT_PORT, Projections.BTE, null, null, null, null, null);
+            new CliOptions(PreviewWebServer.DEFAULT_PORT, Projections.BTE, null, null, null, null, null, null);
 
     private static final String PORT_FLAG = "--port";
     private static final String PORT_SHORT_FLAG = "-p";
     private static final String PROJECTION_FLAG = "--projection";
     private static final String PROJECTION_SHORT_FLAG = "-P";
+    private static final String MC_VERSION_FLAG = "--mc-version";
     private static final String CENTER_LON_FLAG = "--center-lon";
     private static final String CENTER_LAT_FLAG = "--center-lat";
     private static final String CENTER_X_FLAG = "--center-x";
@@ -64,6 +68,7 @@ public record CliOptions(
     public static CliOptions parse(String[] args) {
         int port = DEFAULT.port();
         String projection = DEFAULT.projection();
+        String mcVersion = null;
         Double centerLongitude = null;
         Double centerLatitude = null;
         Double centerX = null;
@@ -86,6 +91,7 @@ public record CliOptions(
                     switch (flag) {
                         case PORT_FLAG, PORT_SHORT_FLAG -> port = parsePortValue(value);
                         case PROJECTION_FLAG, PROJECTION_SHORT_FLAG -> projection = value;
+                        case MC_VERSION_FLAG -> mcVersion = value;
                         case CENTER_LON_FLAG -> centerLongitude = parseLongitude(value);
                         case CENTER_LAT_FLAG -> centerLatitude = parseLatitude(value);
                         case CENTER_X_FLAG -> centerX = parseCoordinate(value);
@@ -107,7 +113,8 @@ public record CliOptions(
             throw new IllegalArgumentException(
                     "The center can be given either in geographic or in Minecraft coordinates, not both");
         }
-        return new CliOptions(port, projection, centerLongitude, centerLatitude, centerX, centerZ, openBrowser);
+        return new CliOptions(
+                port, projection, mcVersion, centerLongitude, centerLatitude, centerX, centerZ, openBrowser);
     }
 
     private static boolean isKnownFlag(String flag) {
@@ -116,6 +123,7 @@ public record CliOptions(
                     PORT_SHORT_FLAG,
                     PROJECTION_FLAG,
                     PROJECTION_SHORT_FLAG,
+                    MC_VERSION_FLAG,
                     CENTER_LON_FLAG,
                     CENTER_LAT_FLAG,
                     CENTER_X_FLAG,

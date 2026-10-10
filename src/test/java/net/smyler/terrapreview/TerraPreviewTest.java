@@ -60,6 +60,10 @@ class TerraPreviewTest {
 
     private static final String OPEN_BROWSER_FLAG = "--open-browser";
 
+    private static final String MC_VERSION_FLAG = "--mc-version";
+
+    private static final String TEST_MC_VERSION = "1.21.8";
+
     private static final String NO_OPEN_BROWSER_FLAG = "--no-open-browser";
 
     private static final String CENTER_LON = "12.5";
@@ -134,6 +138,27 @@ class TerraPreviewTest {
                 Projections.TERRA_PLUS_PLUS,
                 CliOptions.parse(new String[] {"-P", Projections.TERRA_PLUS_PLUS})
                         .projection());
+    }
+
+    @Test
+    void optionsDefaultToTheLatestMinecraftVersion() {
+        assertEquals(null, CliOptions.parse(new String[0]).mcVersion());
+    }
+
+    @Test
+    void optionsAcceptMcVersionInLongForm() {
+        assertEquals(
+                TEST_MC_VERSION,
+                CliOptions.parse(new String[] {MC_VERSION_FLAG, TEST_MC_VERSION})
+                        .mcVersion());
+    }
+
+    @Test
+    void optionsAcceptMcVersionInEqualsForm() {
+        assertEquals(
+                TEST_MC_VERSION,
+                CliOptions.parse(new String[] {MC_VERSION_FLAG + EQUALS_FORM + TEST_MC_VERSION})
+                        .mcVersion());
     }
 
     @Test

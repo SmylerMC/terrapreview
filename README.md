@@ -58,6 +58,10 @@ The following environment variables are supported:
 
 The web UI is served on `http://localhost:8080`.
 
+On start, Terrapreview downloads the latest Minecraft client JAR from Mojang's official servers and caches it under
+`terraminusminus/terrapreview/`. The block textures used to render the map tiles are loaded from this JAR. If it
+cannot be downloaded, Terrapreview falls back to flat colors and logs an error.
+
 ### Command-line options
 
 The listen port of the web server can be changed with the `--port` (or `-p`) flag:
@@ -82,6 +86,15 @@ Two shorthands are recognized:
 | `terra++` | The default Terra-- projection (scaled equirectangular) |
 
 Any other name is resolved as a Terra-- projection type, e.g. `equirectangular`, `sinusoidal`, `web_mercator` or `bte_conformal_dymaxion`. An unknown name is rejected with an error message.
+
+The version of the Minecraft client to load block textures from can be selected with the `--mc-version` flag:
+
+```sh
+./gradlew run --args="--mc-version 1.21.8"
+```
+
+The flag also accepts the `--mc-version=1.21.8` form. Any version published in Mojang's version manifest is
+accepted, including snapshots such as `26.4-snapshot-3`. By default the latest release is used.
 
 The initial map center can be chosen either in geographic coordinates or in Minecraft block coordinates:
 

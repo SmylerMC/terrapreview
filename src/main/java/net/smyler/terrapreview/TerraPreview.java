@@ -60,7 +60,7 @@ public final class TerraPreview {
             return;
         }
         TerraIntegration.setup();
-        BlockTextures textures = loadBlockTextures();
+        BlockTextures textures = loadBlockTextures(options.mcVersion());
         EarthPreview preview = new EarthPreview(Projections.settings(options.projection()), textures);
         double[] centerChunk = centerChunkOf(options, preview);
         PreviewWebServer server = new PreviewWebServer(preview, centerChunk, options.port());
@@ -86,9 +86,9 @@ public final class TerraPreview {
         return System.console() != null;
     }
 
-    private static BlockTextures loadBlockTextures() {
+    private static BlockTextures loadBlockTextures(String mcVersion) {
         try {
-            MinecraftClientJar clientJar = MinecraftClientJar.ensureDownloaded(CLIENT_JAR_CACHE, null);
+            MinecraftClientJar clientJar = MinecraftClientJar.ensureDownloaded(CLIENT_JAR_CACHE, mcVersion);
             LOGGER.info("Using Minecraft {} client JAR at {}", clientJar.version(), clientJar.path());
             return new BlockTextures(clientJar.path());
         } catch (IOException e) {
