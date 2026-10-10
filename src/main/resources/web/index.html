@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>TerraPreview</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+html, body {
+    height: 100%;
+    margin: 0;
+}
+#map {
+    height: 100%;
+}
+#map img {
+    image-rendering: pixelated;
+}
+</style>
+</head>
+<body>
+<div id="map"></div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const TILE_SIZE = @TILE_SIZE@;
+const crs = L.Util.extend({}, L.CRS.Simple, {
+    transformation: new L.Transformation(1, 0, 1, 0),
+});
+const map = L.map('map', {
+    crs: crs,
+    minZoom: @MIN_ZOOM@,
+    maxZoom: @MAX_ZOOM@,
+    zoomControl: false,
+    attributionControl: false,
+});
+let tileVersion = 0;
+const makeTiles = () => {
+    const layer = L.gridLayer({
+        tileSize: TILE_SIZE,
+        minZoom: @MIN_ZOOM@,
+        maxZoom: @MAX_ZOOM@,
+        keepBuffer: 0,
+        updateWhenIdle: true,
+    });
+    layer.createTile = (coords) => {
+        const tile = document.createElement('img');
+        tile.src = '/tiles/' + coords.z + '/' + coords.x + '/' + coords.y + '.png?v=' + tileVersion;
+        return tile;
+    };
+    return layer;
+};
+const tileLayers = [makeTiles()];
+tileLayers[0].addTo(map);
+const events = new EventSource('/events');
+events.onmessage = (event) => {
+    tileVersion = event.data;
+    const layer = makeTiles();
+    layer.addTo(map);
+    tileLayers.push(layer);
+    while (tileLayers.length > 2) {
+        map.removeLayer(tileLayers.shift());
+    }
+};
+map.setView([@CENTER_LAT@, @CENTER_LNG@], @MAX_ZOOM@);
+</script>
+</body>
+</html>
