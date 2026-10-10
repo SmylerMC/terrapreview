@@ -12,9 +12,21 @@ version = "0.1.0-SNAPSHOT"
 
 repositories {
     mavenCentral()
+    maven {
+        name = "Smyler Releases"
+        url = uri("https://maven.smyler.net/releases/")
+    }
+    maven {
+        name = "DaPorkchop_"
+        url = uri("https://maven.daporkchop.net/")
+    }
 }
 
 dependencies {
+    implementation("net.buildtheearth.terraminusminus:terraminusminus-core:2.2.0-1.21.8")
+    compileOnly("com.google.guava:guava:33.3.1-jre")
+    compileOnly("org.projectlombok:lombok:1.18.42")
+    compileOnly("net.daporkchop.lib:binary:0.5.7-SNAPSHOT")
     testImplementation(platform("org.junit:junit-bom:6.1.3"))
     testImplementation("org.junit.jupiter:junit-jupiter")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
@@ -44,3 +56,4 @@ tasks.test {
         events("passed", "failed", "skipped")
     }
 }
+
