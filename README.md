@@ -36,16 +36,19 @@ real Chrome. The suite in `web-test/` starts a small Node harness server that:
 The tests cover tile rendering, absence of client-side script errors, and
 versioned tile reloads over server-sent events.
 
-The first run installs the npm dependencies in `web-test/` and downloads a
-Puppeteer-managed Chrome automatically; Node.js 22+ must be available on the
-`PATH`. Subsequent runs reuse them.
+The first run installs the npm dependencies in `web-test/`, downloads a
+Puppeteer-managed Chrome, and, on Linux systems where Chrome's shared libraries
+are missing (common in minimal containers and sandboxes, where there is often no
+root access to install packages), fetches them into `~/.cache/terrapreview/` from
+the distribution's package repositories without requiring root. Node.js 22+ must
+be available on the `PATH`. Subsequent runs reuse everything already set up.
 
 The following environment variables are supported:
 
 | Variable | Effect |
 | --- | --- |
 | `PUPPETEER_EXECUTABLE_PATH` | Use an existing Chrome installation instead of downloading one |
-| `CHROME_LIBS_DIR` | Extra directory added to `LD_LIBRARY_PATH` when launching Chrome, for systems where Chrome's shared libraries are not in the default paths |
+| `CHROME_LIBS_DIR` | Directory of pre-provisioned Chrome shared libraries, used instead of fetching them automatically |
 
 ## Run
 
