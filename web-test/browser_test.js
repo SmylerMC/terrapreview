@@ -619,10 +619,12 @@ describe('TerraPreview web UI', function () {
                 await eventually(async () => server.locateRequests.length > 0, 10_000),
                 'Enter should locate the highlighted place',
             );
-            const center = await page.evaluate(() => map.getCenter());
             assert.ok(
-                Math.abs(center.lat - 45.764) < 0.01 && Math.abs(center.lng - 4.8357) < 0.01,
-                `the map should teleport to Lyon, got ${JSON.stringify(center)}`,
+                await eventually(async () => {
+                    const center = await page.evaluate(() => map.getCenter());
+                    return Math.abs(center.lat - 45.764) < 0.01 && Math.abs(center.lng - 4.8357) < 0.01;
+                }, 10_000),
+                'the map should teleport to Lyon',
             );
             const cleared = await page.evaluate(() => document.getElementById('search-input').value === '');
             assert.ok(cleared, 'the search input should be cleared after selecting with Enter');
