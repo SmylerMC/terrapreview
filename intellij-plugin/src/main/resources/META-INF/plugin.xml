@@ -13,5 +13,9 @@
                 implementation="net.smyler.terrapreview.ide.plugin.TerrapreviewSplitEditorProvider"/>
         <lang.inspectionSuppressor language="JSON"
                 implementationClass="net.smyler.terrapreview.ide.plugin.TerraDuplicatePropertyKeysSuppressor"/>
+        <localInspection language="JSON5" shortName="TerraTrailingComma"
+                displayName="Trailing comma in Terra-- configuration" groupName="Terra--"
+                enabledByDefault="true" level="ERROR"
+                implementationClass="net.smyler.terrapreview.ide.plugin.TerraTrailingCommaInspection"/>
     </extensions>
 </idea-plugin>
