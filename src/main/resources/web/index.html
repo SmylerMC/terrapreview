@@ -24,6 +24,9 @@ html, body {
     border-radius: 0 0 6px 6px;
     pointer-events: none;
     white-space: nowrap;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 #loading-indicator {
     position: absolute;
@@ -104,22 +107,16 @@ html, body {
     width: 12px;
     height: 12px;
 }
-#search-bar {
-    position: absolute;
-    bottom: 10px;
-    left: 10px;
-    z-index: 1000;
-    width: 300px;
-    font-family: monospace;
-    font-size: 14px;
+#search-seg {
+    position: relative;
+    pointer-events: auto;
 }
 #search-input {
     box-sizing: border-box;
-    width: 100%;
-    padding: 6px 12px;
+    width: 200px;
+    padding: 0;
     border: none;
-    border-radius: 6px;
-    background: rgba(38, 38, 38, 0.8);
+    background: none;
     color: #eee;
     font-family: inherit;
     font-size: inherit;
@@ -129,14 +126,19 @@ html, body {
     color: #999;
 }
 #search-results {
+    position: absolute;
+    top: 100%;
+    left: 0;
     margin: 0;
     padding: 0;
     list-style: none;
+    width: 300px;
     max-height: 320px;
     overflow-y: auto;
     border-radius: 0 0 6px 6px;
     background: rgba(38, 38, 38, 0.9);
     color: #eee;
+    text-align: left;
 }
 #search-results.hidden {
     display: none;
@@ -180,11 +182,7 @@ html, body {
 <div id="offline-banner">Server offline &mdash; waiting for it to come back&hellip;</div>
 <div id="loading-indicator"></div>
 <div id="error-banner"></div>
-<div id="search-bar">
-    <input id="search-input" type="text" placeholder="Search a place…" autocomplete="off">
-    <ul id="search-results" class="hidden"></ul>
-</div>
-<div id="coords-bar"><span class="coord-seg"><svg viewBox="0 0 16 16"><path d="M8 1.5 14 4.5v7L8 14.5 2 11.5v-7z"/><path d="M2 4.5 8 7.5l6-3"/><path d="M8 7.5v7"/></svg><span id="block-coords"></span><button class="copy-button" data-copy="block-coords" title="Copy coordinates"><svg viewBox="0 0 16 16"><rect x="5" y="5" width="9" height="9" rx="1"/><path d="M11 5V2.5a.5.5 0 0 0-.5-.5H2.5a.5.5 0 0 0-.5.5v8a.5.5 0 0 0 .5.5H5"/></svg></button></span><span class="coord-seg"><svg viewBox="0 0 16 16"><circle cx="6.5" cy="6.5" r="4.5"/><path d="M10 10l4.5 4.5"/></svg><span id="zoom-coords"></span><button class="copy-button" data-copy="zoom-coords" title="Copy zoom level"><svg viewBox="0 0 16 16"><rect x="5" y="5" width="9" height="9" rx="1"/><path d="M11 5V2.5a.5.5 0 0 0-.5-.5H2.5a.5.5 0 0 0-.5.5v8a.5.5 0 0 0 .5.5H5"/></svg></button></span><span class="coord-seg"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.5"/><ellipse cx="8" cy="8" rx="3" ry="6.5"/><path d="M1.5 8h13"/></svg><span id="geo-coords"></span><button class="copy-button" data-copy="geo-coords" title="Copy coordinates"><svg viewBox="0 0 16 16"><rect x="5" y="5" width="9" height="9" rx="1"/><path d="M11 5V2.5a.5.5 0 0 0-.5-.5H2.5a.5.5 0 0 0-.5.5v8a.5.5 0 0 0 .5.5H5"/></svg></button></span></div>
+<div id="coords-bar"><span class="coord-seg"><svg viewBox="0 0 16 16"><path d="M8 1.5 14 4.5v7L8 14.5 2 11.5v-7z"/><path d="M2 4.5 8 7.5l6-3"/><path d="M8 7.5v7"/></svg><span id="block-coords"></span><button class="copy-button" data-copy="block-coords" title="Copy coordinates"><svg viewBox="0 0 16 16"><rect x="5" y="5" width="9" height="9" rx="1"/><path d="M11 5V2.5a.5.5 0 0 0-.5-.5H2.5a.5.5 0 0 0-.5.5v8a.5.5 0 0 0 .5.5H5"/></svg></button></span><span class="coord-seg"><svg viewBox="0 0 16 16"><circle cx="6.5" cy="6.5" r="4.5"/><path d="M10 10l4.5 4.5"/></svg><span id="zoom-coords"></span><button class="copy-button" data-copy="zoom-coords" title="Copy zoom level"><svg viewBox="0 0 16 16"><rect x="5" y="5" width="9" height="9" rx="1"/><path d="M11 5V2.5a.5.5 0 0 0-.5-.5H2.5a.5.5 0 0 0-.5.5v8a.5.5 0 0 0 .5.5H5"/></svg></button></span><span class="coord-seg"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.5"/><ellipse cx="8" cy="8" rx="3" ry="6.5"/><path d="M1.5 8h13"/></svg><span id="geo-coords"></span><button class="copy-button" data-copy="geo-coords" title="Copy coordinates"><svg viewBox="0 0 16 16"><rect x="5" y="5" width="9" height="9" rx="1"/><path d="M11 5V2.5a.5.5 0 0 0-.5-.5H2.5a.5.5 0 0 0-.5.5v8a.5.5 0 0 0 .5.5H5"/></svg></button></span><span class="coord-seg" id="search-seg"><svg viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5l3.5 3.5"/></svg><input id="search-input" type="text" placeholder="Search a place…" autocomplete="off"><ul id="search-results" class="hidden"></ul></span></div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 const TILE_SIZE = @TILE_SIZE@;
@@ -470,7 +468,7 @@ searchResults.addEventListener('mousedown', (event) => {
         });
 });
 document.addEventListener('click', (event) => {
-    if (!event.target.closest('#search-bar')) {
+    if (!event.target.closest('#search-seg')) {
         searchResults.classList.add('hidden');
     }
 });

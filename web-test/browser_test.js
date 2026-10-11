@@ -270,6 +270,14 @@ describe('TerraPreview web UI', function () {
         );
     });
 
+    it('shows the search input in the top bar', async function () {
+        await openMap();
+        const inTopBar = await page.evaluate(() => {
+            const input = document.getElementById('search-input');
+            return input.closest('#coords-bar') !== null;
+        });
+        assert.ok(inTopBar, 'the search input should live in the top bar');
+    });
     it('shows an icon before each coordinate segment', async function () {
         await openMap();
         const icons = await page.evaluate(() => {
@@ -279,7 +287,7 @@ describe('TerraPreview web UI', function () {
                 return svg !== null && svg.getBoundingClientRect().width > 0;
             });
         });
-        assert.equal(icons.length, 3, 'the top bar should have three coordinate segments');
+        assert.equal(icons.length, 4, 'the top bar should have four segments');
         assert.ok(icons.every((visible) => visible), 'each segment should display an icon');
     });
 
