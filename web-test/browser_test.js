@@ -276,6 +276,33 @@ describe('TerraPreview web UI', function () {
         });
         assert.ok(inTopBar, 'the search input should live in the top bar');
     });
+    it('aligns the search results with the top bar', async function () {
+        await openMap();
+        const type = (query) => {
+            for (const character of query) {
+                page.evaluate((char) => {
+                    const input = document.getElementById('search-input');
+                    input.value = input.value + char;
+                    input.dispatchEvent(new Event('input', { bubbles: true }));
+                }, character);
+            }
+        };
+        await type('par');
+        assert.ok(
+            await eventually(async () => (await page.$$eval('#search-results li', (items) => items.length)) === 1, 10_000),
+            'searching for par should find Paris',
+        );
+        const aligned = await page.evaluate(() => {
+            const bar = document.getElementById('coords-bar').getBoundingClientRect();
+            const results = document.getElementById('search-results').getBoundingClientRect();
+            return {
+                leftOffset: results.left - bar.left,
+                topOffset: results.top - bar.bottom,
+            };
+        });
+        assert.ok(Math.abs(aligned.leftOffset) < 1, `the results should align with the bar's left edge, got ${aligned.leftOffset}`);
+        assert.ok(Math.abs(aligned.topOffset) < 1, `the results should attach to the bar's bottom edge, got ${aligned.topOffset}`);
+    });
     it('shows an icon before each coordinate segment', async function () {
         await openMap();
         const icons = await page.evaluate(() => {
