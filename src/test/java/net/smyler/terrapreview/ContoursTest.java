@@ -28,9 +28,15 @@ class ContoursTest {
 
     private static final float FULL_VISIBILITY = 1F;
 
+    private static final Color ZONE_COLOR = new Color(0x0D, 0x33, 0x0D, 0x99);
 
+    private static final int COMPOSITED_ZONE_RGB = blendOver(BACKGROUND, ZONE_COLOR) & RGB_MASK;
 
-
+    /**
+     * The color the zone lines have where two segments meet and the line is composited twice.
+     */
+    private static final int DOUBLE_COMPOSITED_ZONE_RGB =
+            blendOver(new Color(COMPOSITED_ZONE_RGB), ZONE_COLOR) & RGB_MASK;
 
     private static final int LOW = 5;
 
@@ -50,6 +56,35 @@ class ContoursTest {
      */
     private static final int DOUBLE_COMPOSITED_LINE_RGB =
             blendOver(new Color(COMPOSITED_LINE_RGB), LINE_COLOR) & RGB_MASK;
+
+    @Test
+    void zoneBoundariesAreLined() {
+        // A forest patch in the middle of bare land: its boundary must be lined on all four sides.
+        boolean[][] zones = {
+            {false, false, false, false, false},
+            {false, true, true, true, false},
+            {false, true, true, true, false},
+            {false, true, true, true, false},
+            {false, false, false, false, false}
+        };
+        BufferedImage image = drawZones(zones, ZONE_COLOR);
+        for (int z = CELL + 1; z < ZONE_EDGE * CELL - 1; z++) {
+            assertTrue(isZoneLine(image.getRGB(CELL, z)), "the west boundary must be lined");
+            assertTrue(isZoneLine(image.getRGB(ZONE_EDGE * CELL, z)), "the east boundary must be lined");
+        }
+        for (int x = CELL + 1; x < ZONE_EDGE * CELL - 1; x++) {
+            assertTrue(isZoneLine(image.getRGB(x, CELL)), "the north boundary must be lined");
+            assertTrue(isZoneLine(image.getRGB(x, ZONE_EDGE * CELL)), "the south boundary must be lined");
+        }
+        assertTrue(!isZoneLine(image.getRGB(2 * CELL, 2 * CELL)), "the zone interior must not be lined");
+        assertTrue(!isZoneLine(image.getRGB(0, 0)), "the outside must not be lined");
+    }
+
+    @Test
+    void uniformZonesHaveNoBoundaryLines() {
+        assertTrue(lineCount(drawZones(new boolean[GRID_SIZE][GRID_SIZE], ZONE_COLOR)) == 0);
+        assertTrue(lineCount(drawZones(allTrue(), ZONE_COLOR)) == 0);
+    }
 
     @Test
     void linesFadeAtLowVisibility() {
@@ -197,6 +232,42 @@ class ContoursTest {
             }
         }
         return grid;
+    }
+
+    private static boolean isZoneLine(int rgb) {
+        int masked = rgb & RGB_MASK;
+        return masked == COMPOSITED_ZONE_RGB || masked == DOUBLE_COMPOSITED_ZONE_RGB;
+    }
+
+    private static int lineCount(BufferedImage image) {
+        int count = 0;
+        for (int z = 0; z < image.getHeight(); z++) {
+            for (int x = 0; x < image.getWidth(); x++) {
+                if (isZoneLine(image.getRGB(x, z) & RGB_MASK)) {
+                    count++;
+                }
+            }
+        }
+        return count;
+    }
+
+    private static boolean[][] allTrue() {
+        boolean[][] zones = new boolean[GRID_SIZE][GRID_SIZE];
+        for (boolean[] row : zones) {
+            java.util.Arrays.fill(row, true);
+        }
+        return zones;
+    }
+
+    private static BufferedImage drawZones(boolean[][] zones, Color color) {
+        int size = zones.length;
+        BufferedImage image = new BufferedImage(size * CELL, size * CELL, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D graphics = image.createGraphics();
+        graphics.setColor(BACKGROUND);
+        graphics.fillRect(0, 0, size * CELL, size * CELL);
+        Contours.drawZones(graphics, zones, color, CELL);
+        graphics.dispose();
+        return image;
     }
 
     private static boolean isLine(int rgb) {

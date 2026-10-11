@@ -81,6 +81,11 @@ public final class EarthPreview implements Preview {
     private static final String WATER_BLOCK = "water";
 
     /**
+     * The color of the lines around tree covered areas, matching the tree overlay.
+     */
+    private static final Color TREE_ZONE_COLOR = new Color(0x0D, 0x33, 0x0D, 0x99);
+
+    /**
      * The color deep water is darkened towards, as vanilla water looks darker the deeper it is.
      */
     private static final Color DEEP_WATER_COLOR = new Color(0x1A2F6B);
@@ -250,6 +255,7 @@ public final class EarthPreview implements Preview {
         Graphics2D graphics = image.createGraphics();
         int[][] heights = new int[blocksPerTile + EDGE][blocksPerTile + EDGE];
         boolean[][] water = new boolean[blocksPerTile + EDGE][blocksPerTile + EDGE];
+        boolean[][] trees = new boolean[blocksPerTile + EDGE][blocksPerTile + EDGE];
         try {
             for (int z = 0; z < blocksPerTile + EDGE; z++) {
                 for (int x = 0; x < blocksPerTile + EDGE; x++) {
@@ -262,6 +268,8 @@ public final class EarthPreview implements Preview {
                             .join();
                     heights[x][z] = chunk.surfaceHeight(blockX & CHUNK_MASK, blockZ & CHUNK_MASK);
                     water[x][z] = chunk.groundHeight(blockX & CHUNK_MASK, blockZ & CHUNK_MASK) < heights[x][z];
+                    trees[x][z] =
+                            !water[x][z] && TreeCover.treeChance(chunk, blockX & CHUNK_MASK, blockZ & CHUNK_MASK) > 0;
                     if (x >= MARGIN && z >= MARGIN && x < blocksPerTile + MARGIN && z < blocksPerTile + MARGIN) {
                         this.drawBlock(
                                 graphics,
@@ -280,6 +288,7 @@ public final class EarthPreview implements Preview {
                 }
             }
             graphics.translate(-MARGIN * pixelsPerBlock, -MARGIN * pixelsPerBlock);
+            Contours.drawZones(graphics, trees, TREE_ZONE_COLOR, pixelsPerBlock);
             Contours.draw(graphics, heights, water, pixelsPerBlock, contourVisibility(pixelsPerBlock));
         } finally {
             graphics.dispose();
