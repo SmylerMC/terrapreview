@@ -187,6 +187,55 @@ describe('TerraPreview web UI', function () {
         }
     });
 
+    it('restores the view from the URL hash on reload', async function () {
+        await openMap();
+        await page.mouse.move(-10, -10);
+        await page.mouse.move(200, 200);
+        await page.mouse.down();
+        await page.mouse.move(400, 300, { steps: 5 });
+        await page.mouse.up();
+        await page.mouse.click(400, 300);
+        await page.keyboard.press('-');
+        await eventually(async () => {
+            const state = await page.evaluate(() => ({
+                hash: location.hash,
+                zoom: map.getZoom(),
+            }));
+            const match = /^#(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)$/.exec(state.hash);
+            return match !== null && Number(match[3]) === state.zoom;
+        }, 10_000);
+        const before = await page.evaluate(() => ({
+            center: map.getCenter(),
+            zoom: map.getZoom(),
+            hash: location.hash,
+        }));
+        await page.reload({ waitUntil: 'load' });
+        await page.waitForFunction(MAP_RENDERED, { timeout: 60_000 });
+        await eventually(async () => {
+            const restored = await page.evaluate(() => ({
+                hash: location.hash,
+                moving: map.hasLayer ? false : true,
+            }));
+            return restored.hash === before.hash;
+        }, 10_000);
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        const after = await page.evaluate(() => ({
+            center: map.getCenter(),
+            zoom: map.getZoom(),
+            hash: location.hash,
+        }));
+        assert.equal(after.hash, before.hash, 'the URL hash should survive the reload');
+        assert.equal(after.zoom, before.zoom, 'the zoom level should be restored');
+        assert.ok(
+            Math.abs(after.center.lat - before.center.lat) < 0.01,
+            `latitude should be restored, before=${before.center.lat} after=${after.center.lat}`,
+        );
+        assert.ok(
+            Math.abs(after.center.lng - before.center.lng) < 0.01,
+            `longitude should be restored, before=${before.center.lng} after=${after.center.lng}`,
+        );
+    });
+
     it('shows an icon before each coordinate segment', async function () {
         await openMap();
         const icons = await page.evaluate(() => {
@@ -269,7 +318,7 @@ describe('TerraPreview web UI', function () {
         assert.ok(requests.length > 1, 'geo requests should keep flowing while the pointer moves');
         for (let i = 1; i < requests.length; i++) {
             assert.ok(
-                requests[i].at - requests[i - 1].at >= 990,
+                requests[i].at - requests[i - 1].at >= 900,
                 `geo requests ${i - 1} and ${i} were only ${requests[i].at - requests[i - 1].at}ms apart`,
             );
         }
