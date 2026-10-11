@@ -47,10 +47,12 @@ public final class TerrapreviewToolWindowFactory implements ToolWindowFactory {
         String url = service.previewUrl();
         if (JBCefApp.isSupported()) {
             PreviewBrowser browser = new PreviewBrowser(url);
-            content.setDisposer(new CompositeDisposable(service, browser));
+            Subscription subscription = new Subscription(service);
+            content.setDisposer(new CompositeDisposable(service, browser, subscription));
             this.replace(content, browser.component());
         } else {
-            content.setDisposer(service);
+            Subscription subscription = new Subscription(service);
+            content.setDisposer(new CompositeDisposable(service, subscription));
             this.replace(content, new FallbackPanel(url));
         }
     }
@@ -66,12 +68,28 @@ public final class TerrapreviewToolWindowFactory implements ToolWindowFactory {
     /**
      * Disposes several disposables as one.
      */
-    private record CompositeDisposable(Disposable first, Disposable second) implements Disposable {
+    private record CompositeDisposable(Disposable... disposables) implements Disposable {
 
         @Override
         public void dispose() {
-            this.second.dispose();
-            this.first.dispose();
+            for (Disposable disposable : this.disposables) {
+                disposable.dispose();
+            }
+        }
+    }
+
+    /**
+     * A subscription to the configuration changes of a Terrapreview service.
+     */
+    private static final class Subscription implements Disposable {
+
+        private Subscription(TerrapreviewService service) {
+            service.subscribeToConfigurationChanges(this);
+        }
+
+        @Override
+        public void dispose() {
+            // listeners registered against this disposable are removed by the platform
         }
     }
 

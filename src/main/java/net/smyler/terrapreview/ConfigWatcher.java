@@ -77,15 +77,16 @@ public final class ConfigWatcher {
                 this.handleKey(this.watchService.take());
                 this.waitForQuietPeriod();
                 this.onChange.run();
+                // CHECKSTYLE:OFF: IllegalCatch - a failing change callback must not kill the watching thread
             } catch (ClosedWatchServiceException e) {
                 return;
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 return;
-            } catch (IOException e) {
-                LOGGER.error("Failed to watch configuration directory", e);
-                return;
+            } catch (IOException | RuntimeException e) {
+                LOGGER.error("Failed to process a configuration change, keep watching", e);
             }
+            // CHECKSTYLE:ON
         }
     }
 

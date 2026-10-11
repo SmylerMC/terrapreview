@@ -3,15 +3,19 @@ package net.smyler.terrapreview.ide.plugin;
 import com.intellij.openapi.Disposable;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.application.ApplicationManager;
+import com.intellij.openapi.vfs.VirtualFileManager;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import net.buildtheearth.terraminusminus.util.http.Disk;
 import net.smyler.terrapreview.BlockTextures;
 import net.smyler.terrapreview.ConfigWatcher;
 import net.smyler.terrapreview.EarthPreview;
+import net.smyler.terrapreview.GeneratorSettingsFile;
 import net.smyler.terrapreview.MinecraftClientJar;
 import net.smyler.terrapreview.PreviewWebServer;
-import net.smyler.terrapreview.Projections;
+import net.smyler.terrapreview.TerraIntegration;
 
 /**
  * Runs the Terrapreview web server and configuration watcher for an open project.
@@ -21,6 +25,7 @@ public final class TerrapreviewService implements Disposable {
     private static final Logger LOGGER = Logger.getInstance(TerrapreviewService.class);
 
     private final BlockTextures textures;
+    private final Path configRoot;
     private final PreviewWebServer server;
     private final ConfigWatcher watcher;
     private boolean running;
@@ -32,11 +37,14 @@ public final class TerrapreviewService implements Disposable {
      * @throws IOException if the server or watcher cannot be started
      */
     public TerrapreviewService(Project project) throws IOException {
+        TerraIntegration.setup();
         this.textures = loadTextures();
+        this.configRoot = Files.createDirectories(configRootOf(project));
+        setConfigRoot(this.configRoot);
         EarthPreview preview = this.newPreview();
         this.server = new PreviewWebServer(preview, preview.defaultCenterChunk(), PreviewWebServer.ANY_PORT);
         this.server.start();
-        this.watcher = this.newWatcher(project);
+        this.watcher = this.newWatcher();
         this.watcher.start();
         this.running = true;
     }
@@ -50,22 +58,49 @@ public final class TerrapreviewService implements Disposable {
         return "http://localhost:" + this.server.port() + "/";
     }
 
-    private EarthPreview newPreview() {
-        return new EarthPreview(Projections.settings(Projections.BTE), this.textures);
+    /**
+     * Reloads the preview whenever a Terra-- configuration file changes, until the given disposable is disposed.
+     *
+     * @param parent the disposable controlling the lifetime of the subscription
+     */
+    public void subscribeToConfigurationChanges(Disposable parent) {
+        ApplicationManager.getApplication()
+                .getMessageBus()
+                .connect(parent)
+                .subscribe(VirtualFileManager.VFS_CHANGES, new TerrapreviewConfigFileListener(this));
     }
 
-    private ConfigWatcher newWatcher(Project project) {
+    /**
+     * Rebuilds the previewed world from the current configuration files.
+     */
+    public void reloadPreview() {
+        this.server.setPreview(this.newPreview());
+    }
+
+    private EarthPreview newPreview() {
+        return new EarthPreview(GeneratorSettingsFile.load(this.configRoot), this.textures);
+    }
+
+    private static void setConfigRoot(Path configRoot) {
+        try {
+            Disk.setConfigRoot(configRoot.toFile());
+        } catch (IllegalStateException e) {
+            LOGGER.warn("A configuration root was already set, keeping it");
+        }
+    }
+
+    private static Path configRootOf(Project project) {
         String basePath = project.getBasePath();
-        Path configRoot = basePath != null
+        return basePath != null
                 ? Path.of(basePath, "terraminusminus", "config")
                 : Path.of("terraminusminus", "config");
+    }
+
+    private ConfigWatcher newWatcher() {
         try {
-            return new ConfigWatcher(Files.createDirectories(configRoot), () -> {
-                LOGGER.info("Configuration change detected, updating the rendering engine...");
-                this.server.setPreview(this.newPreview());
-            });
+            return new ConfigWatcher(Files.createDirectories(this.configRoot), this::reloadPreview);
         } catch (IOException e) {
-            LOGGER.error("Failed to watch the configuration directory " + configRoot, e);
+            LOGGER.error("Failed to watch the configuration directory " + this.configRoot, e);
             try {
                 return new ConfigWatcher(Files.createTempDirectory("terrapreview"), () -> {});
             } catch (IOException e2) {

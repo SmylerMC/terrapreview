@@ -221,7 +221,7 @@ public final class PreviewWebServer {
         double[] geo;
         try {
             geo = this.preview.blockToGeo(x, z);
-        } catch (IllegalArgumentException _) {
+        } catch (IllegalArgumentException e) {
             exchange.sendResponseHeaders(HttpURLConnection.HTTP_NOT_FOUND, -1L);
             return;
         }
