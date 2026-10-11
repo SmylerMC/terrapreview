@@ -296,11 +296,11 @@ describe('TerraPreview web UI', function () {
             const bar = document.getElementById('coords-bar').getBoundingClientRect();
             const results = document.getElementById('search-results').getBoundingClientRect();
             return {
-                leftOffset: results.left - bar.left,
+                rightOffset: results.right - bar.right,
                 topOffset: results.top - bar.bottom,
             };
         });
-        assert.ok(Math.abs(aligned.leftOffset) < 1, `the results should align with the bar's left edge, got ${aligned.leftOffset}`);
+        assert.ok(Math.abs(aligned.rightOffset) < 1, `the results should align with the bar's right edge, got ${aligned.rightOffset}`);
         assert.ok(Math.abs(aligned.topOffset) < 1, `the results should attach to the bar's bottom edge, got ${aligned.topOffset}`);
     });
     it('shows an icon before each coordinate segment', async function () {
