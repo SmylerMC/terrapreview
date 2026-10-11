@@ -447,7 +447,7 @@ searchResults.addEventListener('mousedown', (event) => {
             searchResults.classList.add('hidden');
             searchInput.value = '';
             map.attributionControl.addAttribution(SEARCH_ATTRIBUTION);
-            map.setView([block.z / BLOCKS_PER_UNIT, block.x / BLOCKS_PER_UNIT], @MAX_ZOOM@);
+            map.setView([block.z / BLOCKS_PER_UNIT, block.x / BLOCKS_PER_UNIT], 0);
         }, () => {
             searchResults.textContent = '';
             const message = document.createElement('li');

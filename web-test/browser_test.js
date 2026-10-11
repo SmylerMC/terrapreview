@@ -559,6 +559,11 @@ describe('TerraPreview web UI', function () {
                 Math.abs(center.lat - 48.8566) < 0.01 && Math.abs(center.lng - 2.3522) < 0.01,
                 `the map should teleport to Paris, got ${JSON.stringify(center)}`,
             );
+            assert.equal(
+                await page.evaluate(() => map.getZoom()),
+                0,
+                'the map should teleport at zoom level 0',
+            );
             const noMarker = await page.evaluate(() => document.querySelector('#map path.leaflet-interactive') === null);
             assert.ok(noMarker, 'no marker should be added on the map');
             const cleared = await page.evaluate(() => document.getElementById('search-input').value === '');
