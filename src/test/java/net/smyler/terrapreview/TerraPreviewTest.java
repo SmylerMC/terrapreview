@@ -46,7 +46,6 @@ class TerraPreviewTest {
     private static final String JSON_CONTENT_TYPE = "application/json";
 
     private static final double GEO_TEST_SCALE = 1000D;
-    private static final double GEO_TEST_SCALE = 1000D;
 
     private static final String BASE_URL = "http://localhost:" + PreviewWebServer.DEFAULT_PORT;
 

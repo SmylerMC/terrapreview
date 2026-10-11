@@ -492,7 +492,7 @@ searchInput.addEventListener('keydown', (event) => {
         event.preventDefault();
         highlightResult(selectedIndex - 1 < 0 ? count - 1 : selectedIndex - 1);
     } else if (event.key === 'Enter') {
-        selectResult(selectedResult());
+        selectResult(selectedResult() ?? searchResults.firstElementChild);
     }
 });
 showCenter();
