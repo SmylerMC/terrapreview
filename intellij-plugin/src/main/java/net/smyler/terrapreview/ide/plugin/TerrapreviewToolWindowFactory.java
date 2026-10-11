@@ -23,6 +23,11 @@ import org.jetbrains.annotations.NotNull;
  */
 public final class TerrapreviewToolWindowFactory implements ToolWindowFactory {
 
+    /**
+     * The identifier of the Terrapreview tool window.
+     */
+    public static final String TOOL_WINDOW_ID = "Terrapreview";
+
     @Override
     public void createToolWindowContent(@NotNull Project project, @NotNull ToolWindow toolWindow) {
         Content content = ContentFactory.getInstance().createContent(null, "", false);

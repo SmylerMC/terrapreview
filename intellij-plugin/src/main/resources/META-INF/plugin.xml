@@ -9,5 +9,7 @@
     <extensions defaultExtensionNs="com.intellij">
         <toolWindow id="Terrapreview" anchor="right" icon="AllIcons.World"
                     factoryClass="net.smyler.terrapreview.ide.plugin.TerrapreviewToolWindowFactory"/>
+        <editorNotificationProvider
+                implementation="net.smyler.terrapreview.ide.plugin.TerrapreviewEditorNotificationProvider"/>
     </extensions>
 </idea-plugin>
