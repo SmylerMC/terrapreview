@@ -131,6 +131,14 @@ public final class EarthPreview implements Preview {
      */
     private static final int EDGE = MARGIN * 2;
 
+    private static final int HASH_PRIME = 31;
+
+    private static final double BRIGHTNESS_QUANTUM = 1000D;
+
+    private static final double HALF = 0.5D;
+
+    private static final double FLAT_BRIGHTNESS = 1D;
+
     private final EarthGeneratorSettings settings;
 
     private final LoadingCache<ChunkPos, CompletableFuture<CachedChunkData>> cache;
@@ -138,6 +146,8 @@ public final class EarthPreview implements Preview {
     private final BlockTextures textures;
 
     private final java.util.Map<Integer, BufferedImage> deepWaterTextures = new java.util.HashMap<>();
+
+    private final java.util.Map<ShadedTextureKey, BufferedImage> shadedTextures = new java.util.HashMap<>();
 
     /**
      * Creates a new previewer using the default Terra++ generator settings and no block textures.
@@ -238,8 +248,13 @@ public final class EarthPreview implements Preview {
                         this.drawBlock(
                                 graphics,
                                 chunk,
-                                blockX,
-                                blockZ,
+                                new TerrainContext(
+                                        heights[x][z],
+                                        heights[x][z - 1],
+                                        heights[x - 1][z],
+                                        heights[x - 1][z - 1],
+                                        blockX,
+                                        blockZ),
                                 (x - MARGIN) * pixelsPerBlock,
                                 (z - MARGIN) * pixelsPerBlock,
                                 pixelsPerBlock);
@@ -266,10 +281,12 @@ public final class EarthPreview implements Preview {
         return Math.min(1F, pixelsPerBlock / (float) PIXELS_PER_BLOCK);
     }
 
-    private void drawBlock(Graphics2D graphics, CachedChunkData chunk, int blockX, int blockZ, int x, int y, int size) {
+    private void drawBlock(Graphics2D graphics, CachedChunkData chunk, TerrainContext terrain, int x, int y, int size) {
+        int blockX = terrain.blockX();
+        int blockZ = terrain.blockZ();
+        int surfaceHeight = terrain.surfaceHeight();
         int inChunkX = blockX & CHUNK_MASK;
         int inChunkZ = blockZ & CHUNK_MASK;
-        int surfaceHeight = chunk.surfaceHeight(inChunkX, inChunkZ);
         int groundHeight = chunk.groundHeight(inChunkX, inChunkZ);
         boolean water = groundHeight < surfaceHeight;
         String block;
@@ -284,22 +301,132 @@ public final class EarthPreview implements Preview {
         }
         Optional<BufferedImage> texture =
                 this.textures == null ? Optional.empty() : this.textures.topTexture(block, blockX, blockZ);
-        if (texture.isPresent()) {
-            graphics.drawImage(texture.get(), x, y, size, size, null);
-        } else {
-            graphics.setColor(fallback);
-            graphics.fillRect(x, y, size, size);
-        }
         if (water) {
-            int depth = surfaceHeight - groundHeight;
+            Color depthColor = texture.isPresent() ? null : waterDepthColor(fallback, surfaceHeight - groundHeight);
             if (texture.isPresent()) {
-                graphics.drawImage(this.deepWaterTexture(texture.get(), depth), x, y, size, size, null);
+                graphics.drawImage(texture.get(), x, y, size, size, null);
+                graphics.drawImage(
+                        this.deepWaterTexture(texture.get(), surfaceHeight - groundHeight), x, y, size, size, null);
             } else {
-                graphics.setColor(waterDepthColor(fallback, depth));
+                graphics.setColor(depthColor);
                 graphics.fillRect(x, y, size, size);
             }
+            return;
+        }
+        double northWest = Shading.cornerBrightness(
+                surfaceHeight, terrain.northHeight(), terrain.westHeight(), terrain.northWestHeight());
+        double northEast = Shading.cornerBrightness(surfaceHeight, terrain.northHeight(), surfaceHeight, surfaceHeight);
+        double southWest = Shading.cornerBrightness(surfaceHeight, surfaceHeight, terrain.westHeight(), surfaceHeight);
+        double southEast = Shading.cornerBrightness(surfaceHeight, surfaceHeight, surfaceHeight, surfaceHeight);
+        if (texture.isPresent()) {
+            BufferedImage shaded = this.shadedTexture(texture.get(), northWest, northEast, southWest, southEast);
+            graphics.drawImage(shaded, x, y, size, size, null);
+        } else {
+            Color shadedFallback = Shading.shade(fallback, northWest, northEast, southWest, southEast);
+            graphics.setColor(shadedFallback);
+            graphics.fillRect(x, y, size, size);
         }
     }
+
+    private BufferedImage shadedTexture(
+            BufferedImage texture, double northWest, double northEast, double southWest, double southEast) {
+        if (northWest == FLAT_BRIGHTNESS
+                && northEast == FLAT_BRIGHTNESS
+                && southWest == FLAT_BRIGHTNESS
+                && southEast == FLAT_BRIGHTNESS) {
+            return texture;
+        }
+        return this.shadedTextures.computeIfAbsent(
+                ShadedTextureKey.of(texture, northWest, northEast, southWest, southEast), missing -> {
+                    BufferedImage shaded =
+                            new BufferedImage(texture.getWidth(), texture.getHeight(), BufferedImage.TYPE_INT_ARGB);
+                    for (int z = 0; z < texture.getHeight(); z++) {
+                        double vertical = (z + HALF) / texture.getHeight();
+                        for (int x = 0; x < texture.getWidth(); x++) {
+                            double horizontal = (x + HALF) / texture.getWidth();
+                            Color base = new Color(texture.getRGB(x, z), true);
+                            Color shade = Shading.shade(
+                                    base,
+                                    missing.northWest(),
+                                    missing.northEast(),
+                                    missing.southWest(),
+                                    missing.southEast(),
+                                    horizontal,
+                                    vertical);
+                            shaded.setRGB(x, z, shade.getRGB());
+                        }
+                    }
+                    return shaded;
+                });
+    }
+
+    /**
+     * The texture and corner brightnesses of a block, as a shading cache key.
+     *
+     * <p>The texture is compared by identity, as each block variant has its own texture instance, and the
+     * brightnesses are quantized so that visually identical gradients share one shaded copy.
+     *
+     * @param texture the texture of the block being shaded
+     * @param northWest the brightness of the north west corner
+     * @param northEast the brightness of the north east corner
+     * @param southWest the brightness of the south west corner
+     * @param southEast the brightness of the south east corner
+     */
+    private record ShadedTextureKey(
+            BufferedImage texture, double northWest, double northEast, double southWest, double southEast) {
+
+        private static ShadedTextureKey of(
+                BufferedImage texture, double northWest, double northEast, double southWest, double southEast) {
+            return new ShadedTextureKey(
+                    texture, quantize(northWest), quantize(northEast), quantize(southWest), quantize(southEast));
+        }
+
+        private static double quantize(double brightness) {
+            return Math.round(brightness * BRIGHTNESS_QUANTUM) / BRIGHTNESS_QUANTUM;
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            return other instanceof ShadedTextureKey key
+                    && key.texture == this.texture
+                    && key.northWest == this.northWest
+                    && key.northEast == this.northEast
+                    && key.southWest == this.southWest
+                    && key.southEast == this.southEast;
+        }
+
+        @Override
+        public int hashCode() {
+            int hash = System.identityHashCode(this.texture);
+            hash = hash * HASH_PRIME + Double.hashCode(this.northWest);
+            hash = hash * HASH_PRIME + Double.hashCode(this.northEast);
+            hash = hash * HASH_PRIME + Double.hashCode(this.southWest);
+            hash = hash * HASH_PRIME + Double.hashCode(this.southEast);
+            return hash;
+        }
+    }
+
+    /**
+     * The terrain context of a block being drawn: its position and the heights used for its shading.
+     *
+     * @param surfaceHeight the surface height of the block
+     * @param northHeight the surface height of the block to its north
+     * @param westHeight the surface height of the block to its west
+     * @param blockX the x coordinate of the block
+     * @param blockZ the z coordinate of the block
+     */
+    /**
+     * The terrain context of a block being drawn: its position and the heights of its neighborhood.
+     *
+     * @param surfaceHeight the surface height of the block
+     * @param northHeight the surface height of the block to its north
+     * @param westHeight the surface height of the block to its west
+     * @param northWestHeight the surface height of the block to its north west
+     * @param blockX the x coordinate of the block
+     * @param blockZ the z coordinate of the block
+     */
+    private record TerrainContext(
+            int surfaceHeight, int northHeight, int westHeight, int northWestHeight, int blockX, int blockZ) {}
 
     private BufferedImage deepWaterTexture(BufferedImage texture, int depth) {
         if (depth == 0) {
