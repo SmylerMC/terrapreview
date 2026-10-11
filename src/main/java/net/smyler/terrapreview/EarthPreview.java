@@ -120,6 +120,17 @@ public final class EarthPreview implements Preview {
      */
     private static final long CACHE_EXPIRY_MINUTES = 5L;
 
+    /**
+     * The number of extra blocks sampled around a tile, for elevation contours and shading, so the lines continue
+     * seamlessly across tile boundaries and zones stay closed.
+     */
+    private static final int MARGIN = 1;
+
+    /**
+     * The size of the sampled height grid, with a one block margin on each side of the tile.
+     */
+    private static final int EDGE = MARGIN * 2;
+
     private final EarthGeneratorSettings settings;
 
     private final LoadingCache<ChunkPos, CompletableFuture<CachedChunkData>> cache;
@@ -209,24 +220,50 @@ public final class EarthPreview implements Preview {
         int pixelsPerBlock = zoom >= 0 ? PIXELS_PER_BLOCK * scale : PIXELS_PER_BLOCK / scale;
         BufferedImage image = new BufferedImage(TILE_SIZE, TILE_SIZE, BufferedImage.TYPE_INT_RGB);
         Graphics2D graphics = image.createGraphics();
+        int[][] heights = new int[blocksPerTile + EDGE][blocksPerTile + EDGE];
+        boolean[][] water = new boolean[blocksPerTile + EDGE][blocksPerTile + EDGE];
         try {
-            for (int z = 0; z < blocksPerTile; z++) {
-                for (int x = 0; x < blocksPerTile; x++) {
-                    int blockX = tileX * blocksPerTile + x;
-                    int blockZ = tileZ * blocksPerTile + z;
+            for (int z = 0; z < blocksPerTile + EDGE; z++) {
+                for (int x = 0; x < blocksPerTile + EDGE; x++) {
+                    int blockX = tileX * blocksPerTile + x - MARGIN;
+                    int blockZ = tileZ * blocksPerTile + z - MARGIN;
                     int chunkX = blockX >> CHUNK_SHIFT;
                     int chunkZ = blockZ >> CHUNK_SHIFT;
                     CachedChunkData chunk = this.cache
                             .getUnchecked(new ChunkPos(chunkX, chunkZ))
                             .join();
-                    this.drawBlock(
-                            graphics, chunk, blockX, blockZ, x * pixelsPerBlock, z * pixelsPerBlock, pixelsPerBlock);
+                    heights[x][z] = chunk.surfaceHeight(blockX & CHUNK_MASK, blockZ & CHUNK_MASK);
+                    water[x][z] = chunk.groundHeight(blockX & CHUNK_MASK, blockZ & CHUNK_MASK) < heights[x][z];
+                    if (x >= MARGIN && z >= MARGIN && x < blocksPerTile + MARGIN && z < blocksPerTile + MARGIN) {
+                        this.drawBlock(
+                                graphics,
+                                chunk,
+                                blockX,
+                                blockZ,
+                                (x - MARGIN) * pixelsPerBlock,
+                                (z - MARGIN) * pixelsPerBlock,
+                                pixelsPerBlock);
+                    }
                 }
             }
+            graphics.translate(-MARGIN * pixelsPerBlock, -MARGIN * pixelsPerBlock);
+            Contours.draw(graphics, heights, water, pixelsPerBlock, contourVisibility(pixelsPerBlock));
         } finally {
             graphics.dispose();
         }
         return image;
+    }
+
+    /**
+     * Returns the strength of the contour lines for a tile rendering blocks at the given size: full strength at the
+     * native block size, fading to nothing as blocks shrink to a few pixels at low zoom levels, where the lines
+     * would dominate the tile.
+     *
+     * @param pixelsPerBlock the size of a block in the tile, in pixels
+     * @return the strength of the lines, from 0 for invisible to 1 for full strength
+     */
+    static float contourVisibility(int pixelsPerBlock) {
+        return Math.min(1F, pixelsPerBlock / (float) PIXELS_PER_BLOCK);
     }
 
     private void drawBlock(Graphics2D graphics, CachedChunkData chunk, int blockX, int blockZ, int x, int y, int size) {
@@ -269,13 +306,14 @@ public final class EarthPreview implements Preview {
             return texture;
         }
         return this.deepWaterTextures.computeIfAbsent(depth, missing -> {
-            BufferedImage darkened = new BufferedImage(texture.getWidth(), texture.getHeight(), texture.getType());
+            BufferedImage darkened =
+                    new BufferedImage(texture.getWidth(), texture.getHeight(), BufferedImage.TYPE_INT_ARGB);
             for (int z = 0; z < texture.getHeight(); z++) {
                 for (int x = 0; x < texture.getWidth(); x++) {
                     darkened.setRGB(
                             x,
                             z,
-                            waterDepthColor(new Color(texture.getRGB(x, z)), missing)
+                            waterDepthColor(new Color(texture.getRGB(x, z), true), missing)
                                     .getRGB());
                 }
             }
