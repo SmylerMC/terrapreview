@@ -371,6 +371,35 @@ describe('TerraPreview web UI', function () {
         assert.equal(textAfter, text);
     });
 
+    it('shows an offline banner while the server is unreachable', async function () {
+        await openMap();
+        assert.equal(
+            await page.evaluate(() => document.getElementById('offline-banner').style.display),
+            'none',
+            'the offline banner should be hidden while the server is reachable',
+        );
+        server.offline = true;
+        for (const response of server.clients) {
+            response.destroy();
+        }
+        server.clients.clear();
+        assert.ok(
+            await eventually(
+                () => page.evaluate(() => document.getElementById('offline-banner').style.display === 'block'),
+                10_000,
+            ),
+            'the offline banner should appear once the server connection drops',
+        );
+        server.offline = false;
+        assert.ok(
+            await eventually(
+                () => page.evaluate(() => document.getElementById('offline-banner').style.display === 'none'),
+                20_000,
+            ),
+            'the offline banner should hide once the server is reachable again',
+        );
+    });
+
     it('shows the map zoom level and updates it when zooming', async function () {
         await openMap();
         const initial = await readCoords();

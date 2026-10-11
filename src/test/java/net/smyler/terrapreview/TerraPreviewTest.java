@@ -41,6 +41,7 @@ class TerraPreviewTest {
 
     private static final BufferedImage STUB_TILE = new BufferedImage(4, 2, BufferedImage.TYPE_INT_RGB);
     private static final String CONTENT_TYPE_HEADER = "Content-Type";
+    private static final String DATA_PREFIX = "data:";
     private static final double GEO_TEST_SCALE = 1000D;
 
     private static final String BASE_URL = "http://localhost:" + PreviewWebServer.DEFAULT_PORT;
@@ -476,6 +477,44 @@ class TerraPreviewTest {
     }
 
     @Test
+    void servedPageShowsOfflineBanner() {
+        PreviewWebServer server = new PreviewWebServer((_, _, _) -> STUB_TILE);
+        String page = server.previewPage();
+        assertTrue(page.contains("offline-banner"));
+        assertTrue(page.contains("events.onerror"));
+        assertTrue(page.contains("events.onopen"));
+    }
+
+    @Test
+    void servedPageReloadsWhenServerRestarts() {
+        PreviewWebServer server = new PreviewWebServer((_, _, _) -> STUB_TILE);
+        String page = server.previewPage();
+        assertTrue(page.contains("addEventListener('hello'"));
+        assertTrue(page.contains("location.reload()"));
+    }
+
+    @Test
+    void eventStreamSendsInstanceIdOnConnect() throws IOException {
+        PreviewWebServer server = new PreviewWebServer((_, _, _) -> STUB_TILE);
+        server.start();
+        try {
+            try (InputStream in = URI.create(BASE_URL + "/events").toURL().openStream();
+                    BufferedReader lines = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
+                String line;
+                String hello = null;
+                while (hello == null && (line = lines.readLine()) != null) {
+                    if (line.startsWith(DATA_PREFIX)) {
+                        hello = line.substring(DATA_PREFIX.length()).trim();
+                    }
+                }
+                assertFalse(hello == null || hello.isEmpty(), "the event stream did not send an instance identifier");
+            }
+        } finally {
+            server.stop();
+        }
+    }
+
+    @Test
     void eventStreamNotifiesOnPreviewChange() throws IOException, InterruptedException {
         PreviewWebServer server = new PreviewWebServer((_, _, _) -> STUB_TILE);
         server.start();
@@ -486,11 +525,20 @@ class TerraPreviewTest {
             try (InputStream in = URI.create(BASE_URL + "/events").toURL().openStream();
                     BufferedReader lines = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
                 String line;
+                boolean namedEvent = false;
                 while ((line = lines.readLine()) != null) {
                     if (line.startsWith("retry:")) {
                         connected.countDown();
                     }
-                    if (line.startsWith("data:")) {
+                    if (line.startsWith("event:")) {
+                        namedEvent = true;
+                        continue;
+                    }
+                    if (line.startsWith(DATA_PREFIX)) {
+                        if (namedEvent) {
+                            namedEvent = false;
+                            continue;
+                        }
                         event.set(line);
                         reloaded.countDown();
                         return;
