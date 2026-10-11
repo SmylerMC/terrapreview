@@ -79,8 +79,11 @@ public final class BlockTextures {
 
     private static final int BYTE_MASK = 0xFF;
     private static final int ALPHA_MASK = 0xFF000000;
+    private static final int ALPHA_SHIFT = 24;
     private static final int RED_SHIFT = 16;
     private static final int GREEN_SHIFT = 8;
+    private static final int GREEN_COMPONENT_INDEX = 1;
+    private static final int BLUE_COMPONENT_INDEX = 2;
 
     private final Map<String, BufferedImage[]> blockTopTextures = new HashMap<>();
     private final Map<String, BufferedImage> textureImages = new HashMap<>();
@@ -278,8 +281,40 @@ public final class BlockTextures {
         if (image == null) {
             throw new IOException("Not a valid image: " + texture);
         }
+        image = withoutIccColorSpace(image);
         this.textureImages.put(texture, image);
         return image;
+    }
+
+    /**
+     * Copies an image with a non-sRGB color space, such as the grayscale images Minecraft ships for stone, to the
+     * sRGB direct color model, using their raw sample values.
+     *
+     * <p>Java loads grayscale PNGs with an ICC color space, in which {@link BufferedImage#getRGB(int, int)} runs a
+     * colorimetric conversion that brightens and desaturates the samples; drawing the image itself does not convert.
+     * Minecraft, however, reads grayscale samples as-is, so a block with rotated texture variants would randomly mix
+     * converted and unconverted pixels. Normalizing every image up front makes all code paths see the same colors.
+     *
+     * @param image the image to normalize
+     * @return an image in the sRGB direct color model, or the image itself if it is already suitable
+     */
+    static BufferedImage withoutIccColorSpace(BufferedImage image) {
+        if (image.getColorModel().getColorSpace().isCS_sRGB()) {
+            return image;
+        }
+        BufferedImage normalized = new BufferedImage(image.getWidth(), image.getHeight(), BufferedImage.TYPE_INT_ARGB);
+        int[] samples = new int[image.getColorModel().getNumComponents()];
+        for (int y = 0; y < image.getHeight(); y++) {
+            for (int x = 0; x < image.getWidth(); x++) {
+                image.getRaster().getPixel(x, y, samples);
+                int red = samples[0];
+                int green = samples.length > GREEN_COMPONENT_INDEX ? samples[GREEN_COMPONENT_INDEX] : samples[0];
+                int blue = samples.length > BLUE_COMPONENT_INDEX ? samples[BLUE_COMPONENT_INDEX] : samples[0];
+                int alpha = image.getColorModel().hasAlpha() ? samples[samples.length - 1] : BYTE_MASK;
+                normalized.setRGB(x, y, alpha << ALPHA_SHIFT | red << RED_SHIFT | green << GREEN_SHIFT | blue);
+            }
+        }
+        return normalized;
     }
 
     /**
