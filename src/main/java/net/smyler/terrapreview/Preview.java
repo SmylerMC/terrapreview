@@ -32,4 +32,17 @@ public interface Preview {
     default double[] blockToGeo(double x, double z) {
         throw new UnsupportedOperationException("This preview has no geographic mapping");
     }
+
+    /**
+     * Returns the Minecraft block position of the given geographic coordinates.
+     *
+     * @param longitude the longitude, in degrees
+     * @param latitude the latitude, in degrees
+     * @return a two-element array of the block x and z coordinates
+     * @throws UnsupportedOperationException when the preview has no geographic mapping
+     * @throws IllegalArgumentException when the location is outside the projection bounds
+     */
+    default double[] geoToBlock(double longitude, double latitude) {
+        throw new UnsupportedOperationException("This preview has no geographic mapping");
+    }
 }

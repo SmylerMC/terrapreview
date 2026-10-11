@@ -470,6 +470,111 @@ describe('TerraPreview web UI', function () {
         );
     });
 
+
+    describe('search', function () {
+        async function type(query, { append = false } = {}) {
+            if (!append) {
+                await page.evaluate(() => {
+                    const input = document.getElementById('search-input');
+                    input.value = '';
+                });
+            }
+            for (const character of query) {
+                await page.evaluate((char) => {
+                    const input = document.getElementById('search-input');
+                    input.value = input.value + char;
+                    input.dispatchEvent(new Event('input', { bubbles: true }));
+                }, character);
+            }
+        }
+        async function results() {
+            return await page.$$eval('#search-results li', (items) =>
+                items.map((item) => ({
+                    text: item.textContent,
+                    lon: Number(item.dataset.lon),
+                    lat: Number(item.dataset.lat),
+                })),
+            );
+        }
+        it('shows matching places while typing', async function () {
+            await openMap();
+            await type('par');
+            assert.ok(
+                await eventually(async () => (await results()).length === 1, 10_000),
+                'searching for par should find Paris',
+            );
+            const paris = (await results())[0];
+            assert.equal(paris.lon, 2.3522);
+            assert.equal(paris.lat, 48.8566);
+            assert.ok(paris.text.includes('Paris'), 'result should be named Paris');
+            assert.ok(paris.text.includes('city'), 'result should mention its kind');
+            await type('xyz', { append: true });
+            assert.ok(
+                await eventually(async () => (await results()).length === 0, 10_000),
+                'no known place matches parxyz',
+            );
+        });
+        it('debounces search requests while typing', async function () {
+            await openMap();
+            await type('paris');
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+            const requests = server.searchRequests.map((request) => request.query);
+            assert.deepEqual(requests, ['paris'], 'only one request should be sent after typing stops');
+        });
+        it('flies to the clicked result and marks it', async function () {
+            await openMap();
+            await type('par');
+            assert.ok(
+                await eventually(async () => (await results()).length === 1, 10_000),
+                'searching for par should find Paris',
+            );
+            const before = await page.evaluate(() => map.getCenter());
+            await page.click('#search-results li');
+            assert.ok(
+                await eventually(async () => {
+                    const center = await page.evaluate(() => map.getCenter());
+                    return Math.abs(center.lat - 48.8566) < 0.01 && Math.abs(center.lng - 2.3522) < 0.01;
+                }, 10_000),
+                'the map should fly to Paris',
+            );
+            const marker = await page.evaluate(() => {
+                const circle = document.querySelector('#map path.leaflet-interactive');
+                return circle !== null;
+            });
+            assert.ok(marker, 'a marker should be added on the map');
+            assert.equal(server.locateRequests.length, 1, 'exactly one locate request should be sent');
+            assert.ok(
+                await page.evaluate(() =>
+                    document.querySelector('.leaflet-control-attribution').textContent.includes('Photon')),
+                'the attribution should credit Photon after a search',
+            );
+        });
+        it('shows no results while the query is too short', async function () {
+            await openMap();
+            await type('p');
+            await new Promise((resolve) => setTimeout(resolve, 500));
+            assert.equal(server.searchRequests.length, 0, 'no request should be sent for a single character');
+            assert.ok(
+                await page.evaluate(() => document.getElementById('search-results').classList.contains('hidden')),
+                'the results list should stay hidden',
+            );
+        });
+        it('hides the results when clicking elsewhere on the map', async function () {
+            await openMap();
+            await type('par');
+            assert.ok(
+                await eventually(async () => !(await page.evaluate(() =>
+                    document.getElementById('search-results').classList.contains('hidden'))), 10_000),
+                'results should be visible after a search',
+            );
+            await page.mouse.click(400, 300);
+            assert.ok(
+                await eventually(async () => page.evaluate(() =>
+                    document.getElementById('search-results').classList.contains('hidden')), 10_000),
+                'results should be hidden after clicking the map',
+            );
+        });
+    });
     it('updates the view center coordinates while panning without a pointer', async function () {
         await openMap();
         const initial = await readCoords();

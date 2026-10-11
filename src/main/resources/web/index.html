@@ -104,6 +104,61 @@ html, body {
     width: 12px;
     height: 12px;
 }
+#search-bar {
+    position: absolute;
+    bottom: 10px;
+    left: 10px;
+    z-index: 1000;
+    width: 300px;
+    font-family: monospace;
+    font-size: 14px;
+}
+#search-input {
+    box-sizing: border-box;
+    width: 100%;
+    padding: 6px 12px;
+    border: none;
+    border-radius: 6px;
+    background: rgba(38, 38, 38, 0.8);
+    color: #eee;
+    font-family: inherit;
+    font-size: inherit;
+    outline: none;
+}
+#search-input::placeholder {
+    color: #999;
+}
+#search-results {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    max-height: 320px;
+    overflow-y: auto;
+    border-radius: 0 0 6px 6px;
+    background: rgba(38, 38, 38, 0.9);
+    color: #eee;
+}
+#search-results.hidden {
+    display: none;
+}
+#search-results li {
+    padding: 6px 12px;
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+#search-results li:hover {
+    background: rgba(255, 255, 255, 0.15);
+}
+#search-results li .search-kind {
+    margin-left: 6px;
+    color: #999;
+}
+#search-results li .search-kind::before {
+    content: '·';
+    margin-right: 6px;
+}
 #coords-bar,
 .leaflet-container .leaflet-control-attribution {
     padding: 4px 12px;
@@ -125,6 +180,10 @@ html, body {
 <div id="offline-banner">Server offline &mdash; waiting for it to come back&hellip;</div>
 <div id="loading-indicator"></div>
 <div id="error-banner"></div>
+<div id="search-bar">
+    <input id="search-input" type="text" placeholder="Search a place…" autocomplete="off">
+    <ul id="search-results" class="hidden"></ul>
+</div>
 <div id="coords-bar"><span class="coord-seg"><svg viewBox="0 0 16 16"><path d="M8 1.5 14 4.5v7L8 14.5 2 11.5v-7z"/><path d="M2 4.5 8 7.5l6-3"/><path d="M8 7.5v7"/></svg><span id="block-coords"></span><button class="copy-button" data-copy="block-coords" title="Copy coordinates"><svg viewBox="0 0 16 16"><rect x="5" y="5" width="9" height="9" rx="1"/><path d="M11 5V2.5a.5.5 0 0 0-.5-.5H2.5a.5.5 0 0 0-.5.5v8a.5.5 0 0 0 .5.5H5"/></svg></button></span><span class="coord-seg"><svg viewBox="0 0 16 16"><circle cx="6.5" cy="6.5" r="4.5"/><path d="M10 10l4.5 4.5"/></svg><span id="zoom-coords"></span><button class="copy-button" data-copy="zoom-coords" title="Copy zoom level"><svg viewBox="0 0 16 16"><rect x="5" y="5" width="9" height="9" rx="1"/><path d="M11 5V2.5a.5.5 0 0 0-.5-.5H2.5a.5.5 0 0 0-.5.5v8a.5.5 0 0 0 .5.5H5"/></svg></button></span><span class="coord-seg"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.5"/><ellipse cx="8" cy="8" rx="3" ry="6.5"/><path d="M1.5 8h13"/></svg><span id="geo-coords"></span><button class="copy-button" data-copy="geo-coords" title="Copy coordinates"><svg viewBox="0 0 16 16"><rect x="5" y="5" width="9" height="9" rx="1"/><path d="M11 5V2.5a.5.5 0 0 0-.5-.5H2.5a.5.5 0 0 0-.5.5v8a.5.5 0 0 0 .5.5H5"/></svg></button></span></div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
@@ -315,6 +374,104 @@ if (initialView) {
 } else {
     map.setView([@CENTER_LAT@, @CENTER_LNG@], @MAX_ZOOM@);
 }
+const GEOCODER_NAME = '@GEOCODER_NAME@';
+const GEOCODER_URL = '@GEOCODER_URL@';
+const SEARCH_DEBOUNCE_MILLIS = 250;
+const searchInput = document.getElementById('search-input');
+const searchResults = document.getElementById('search-results');
+const SEARCH_ATTRIBUTION = 'Search by <a href="' + GEOCODER_URL + '">' + GEOCODER_NAME + '</a>';
+let searchVersion = 0;
+let searchTimer = null;
+let searchMarker = null;
+const renderResults = (places) => {
+    searchResults.textContent = '';
+    if (places.length === 0) {
+        searchResults.classList.add('hidden');
+        return;
+    }
+    for (const place of places) {
+        const item = document.createElement('li');
+        item.dataset.lon = place.longitude;
+        item.dataset.lat = place.latitude;
+        item.textContent = place.name;
+        if (place.description) {
+            item.textContent += ' (' + place.description + ')';
+        }
+        if (place.kind) {
+            const kindSpan = document.createElement('span');
+            kindSpan.className = 'search-kind';
+            kindSpan.textContent = place.kind.replaceAll('_', ' ');
+            item.appendChild(kindSpan);
+        }
+        searchResults.appendChild(item);
+    }
+    searchResults.classList.remove('hidden');
+};
+const search = () => {
+    const query = searchInput.value.trim();
+    if (query.length < 2) {
+        searchVersion++;
+        renderResults([]);
+        return;
+    }
+    const version = ++searchVersion;
+    fetch('/search?q=' + encodeURIComponent(query))
+        .then((response) => (response.ok ? response.json() : Promise.reject()))
+        .then((body) => {
+            if (version === searchVersion) {
+                renderResults(body.results || []);
+            }
+        }, () => {});
+};
+searchInput.addEventListener('input', () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(search, SEARCH_DEBOUNCE_MILLIS);
+});
+searchResults.addEventListener('mousedown', (event) => {
+    const item = event.target.closest('li');
+    if (!item) {
+        return;
+    }
+    const longitude = Number(item.dataset.lon);
+    const latitude = Number(item.dataset.lat);
+    fetch('/locate/' + longitude + '/' + latitude)
+        .then((response) => (response.ok ? response.json() : Promise.reject()))
+        .then((block) => {
+            searchResults.classList.add('hidden');
+            map.attributionControl.addAttribution(SEARCH_ATTRIBUTION);
+            if (searchMarker) {
+                map.removeLayer(searchMarker);
+            }
+            searchMarker = L.circleMarker([block.z / BLOCKS_PER_UNIT, block.x / BLOCKS_PER_UNIT], {
+                radius: 10,
+                color: '#fff',
+                weight: 2,
+                fillColor: '#e33',
+                fillOpacity: 0.9,
+            }).addTo(map);
+            map.flyTo([block.z / BLOCKS_PER_UNIT, block.x / BLOCKS_PER_UNIT], @MAX_ZOOM@);
+        }, () => {
+            searchResults.textContent = '';
+            const message = document.createElement('li');
+            message.textContent = 'This place is outside the projection bounds';
+            searchResults.classList.remove('hidden');
+        });
+});
+document.addEventListener('click', (event) => {
+    if (!event.target.closest('#search-bar')) {
+        searchResults.classList.add('hidden');
+    }
+});
+searchInput.addEventListener('focus', () => {
+    if (searchResults.children.length > 0) {
+        searchResults.classList.remove('hidden');
+    }
+});
+searchInput.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+        searchResults.classList.add('hidden');
+    }
+});
 showCenter();
 </script>
 </body>
