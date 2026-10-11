@@ -7,8 +7,9 @@
     <depends>com.intellij.modules.platform</depends>
 
     <extensions defaultExtensionNs="com.intellij">
-        <toolWindow id="Terrapreview" anchor="right" icon="AllIcons.World"
-                    factoryClass="net.smyler.terrapreview.ide.plugin.TerrapreviewToolWindowFactory"/>
+        <projectService serviceImplementation="net.smyler.terrapreview.ide.plugin.TerrapreviewService"/>
+        <fileEditorProvider
+                implementation="net.smyler.terrapreview.ide.plugin.TerrapreviewSplitEditorProvider"/>
         <editorNotificationProvider
                 implementation="net.smyler.terrapreview.ide.plugin.TerrapreviewEditorNotificationProvider"/>
     </extensions>
