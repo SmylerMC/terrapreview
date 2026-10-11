@@ -31,9 +31,9 @@ public final class PreviewWebServer {
      */
     public static final int ANY_PORT = 0;
     /**
-     * The lowest leaflet zoom level, two unzoom levels below the native chunk pixel size.
+     * The lowest leaflet zoom level, five unzoom levels below the native chunk pixel size.
      */
-    private static final int MIN_ZOOM = -2;
+    private static final int MIN_ZOOM = -5;
 
     /**
      * The highest leaflet zoom level; keeps the number of visible tiles to a few dozen at most.

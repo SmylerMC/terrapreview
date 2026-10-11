@@ -417,7 +417,7 @@ class TerraPreviewTest {
     void previewPageLocksZoomAndUsesChunkTiles() {
         PreviewWebServer server = new PreviewWebServer((_, _, _) -> STUB_TILE);
         String page = server.previewPage();
-        assertTrue(page.contains("minZoom: -2"));
+        assertTrue(page.contains("minZoom: -5"));
         assertTrue(page.contains("maxZoom: 3"));
         assertTrue(page.contains("tileSize: TILE_SIZE"));
         assertTrue(page.contains("'/tiles/' + coords.z + '/' + coords.x + '/' + coords.y + '.png?v=' + tileVersion"));

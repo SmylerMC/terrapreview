@@ -53,7 +53,7 @@ public final class Contours {
      *                   levels render blocks at only a few pixels, where full strength lines would dominate them
      */
     public static void draw(
-            Graphics2D graphics, int[][] heights, boolean[][] water, int pixelsPerCell, float visibility) {
+            Graphics2D graphics, int[][] heights, boolean[][] water, double pixelsPerCell, float visibility) {
         drawEdges(
                 graphics,
                 heights.length == 0 ? 0 : heights[0].length,
@@ -74,7 +74,7 @@ public final class Contours {
      * @param color the color of the lines
      * @param pixelsPerCell the size of a block, in pixels
      */
-    public static void drawZones(Graphics2D graphics, boolean[][] zones, Color color, int pixelsPerCell) {
+    public static void drawZones(Graphics2D graphics, boolean[][] zones, Color color, double pixelsPerCell) {
         drawEdges(
                 graphics,
                 zones.length == 0 ? 0 : zones[0].length,
@@ -89,7 +89,7 @@ public final class Contours {
             Graphics2D graphics,
             int cellsZ,
             int cellsX,
-            int pixelsPerCell,
+            double pixelsPerCell,
             java.util.function.BiPredicate<Integer, Integer> eastEdge,
             java.util.function.BiPredicate<Integer, Integer> southEdge,
             Color color) {
@@ -101,12 +101,14 @@ public final class Contours {
         for (int x = 0; x < cellsX; x++) {
             for (int z = 0; z < cellsZ; z++) {
                 if (x + 1 < cellsX && eastEdge.test(x, z)) {
-                    int lineX = (x + 1) * pixelsPerCell;
-                    graphics.drawLine(lineX, z * pixelsPerCell, lineX, (z + 1) * pixelsPerCell);
+                    int lineX = (int) Math.round((x + 1) * pixelsPerCell);
+                    graphics.drawLine(lineX, (int) Math.round(z * pixelsPerCell), lineX, (int)
+                            Math.round((z + 1) * pixelsPerCell));
                 }
                 if (z + 1 < cellsZ && southEdge.test(x, z)) {
-                    int y = (z + 1) * pixelsPerCell;
-                    graphics.drawLine(x * pixelsPerCell, y, (x + 1) * pixelsPerCell, y);
+                    int y = (int) Math.round((z + 1) * pixelsPerCell);
+                    graphics.drawLine(
+                            (int) Math.round(x * pixelsPerCell), y, (int) Math.round((x + 1) * pixelsPerCell), y);
                 }
             }
         }
