@@ -16,9 +16,6 @@ loopback port, watching `<project>/terraminusminus/config` for configuration cha
 watched file re-renders the world and the map live-reloads through the same server-sent events the
 browser UI uses. External edits are picked up as well, through a filesystem watcher.
 
-A notification banner above the editor offers to show the preview when a configuration file is
-opened.
-
 If JCEF is not available, the preview half of the split editor is not created and the file opens
 as a plain text editor.
 
