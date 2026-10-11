@@ -11,6 +11,7 @@ import java.net.HttpURLConnection;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Matcher;
@@ -64,6 +65,7 @@ public final class PreviewWebServer {
     private final Object versionChangeMonitor = new Object();
     private volatile String error;
     private volatile boolean running;
+    private volatile String instanceId;
     private HttpServer server;
 
     /**
@@ -164,6 +166,7 @@ public final class PreviewWebServer {
      */
     public void start() throws IOException {
         this.running = true;
+        this.instanceId = UUID.randomUUID().toString();
         this.server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), this.port), 0);
         this.boundPort = this.server.getAddress().getPort();
         this.server.setExecutor(Executors.newCachedThreadPool(
@@ -292,6 +295,7 @@ public final class PreviewWebServer {
         long sentVersion = this.version();
         try (OutputStream out = exchange.getResponseBody()) {
             out.write("retry: 1000\n\n".getBytes(StandardCharsets.UTF_8));
+            out.write(("event: hello\ndata: " + this.instanceId + "\n\n").getBytes(StandardCharsets.UTF_8));
             out.flush();
             while (this.running) {
                 synchronized (this.versionChangeMonitor) {

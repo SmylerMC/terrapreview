@@ -30,6 +30,7 @@ export class TestServer {
         this.geoRequests = [];
         this.error = null;
         this.clients = new Set();
+        this.offline = false;
         this.server = http.createServer((request, response) => this.handle(request, response));
     }
 
@@ -70,6 +71,11 @@ export class TestServer {
     }
 
     async handle(request, response) {
+        if (this.offline) {
+            response.writeHead(503);
+            response.end();
+            return;
+        }
         const url = new URL(request.url, this.url);
         if (url.pathname === '/tiles' || url.pathname.startsWith('/tiles/')) {
             this.tileRequests.push({ path: url.pathname, version: url.searchParams.get('v') });
