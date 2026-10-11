@@ -29,6 +29,8 @@ export class TestServer {
         this.tileRequests = [];
         this.geoRequests = [];
         this.error = null;
+        this.tileDelayMillis = 0;
+        this.geoDelayMillis = 0;
         this.clients = new Set();
         this.offline = false;
         this.server = http.createServer((request, response) => this.handle(request, response));
@@ -79,8 +81,10 @@ export class TestServer {
         const url = new URL(request.url, this.url);
         if (url.pathname === '/tiles' || url.pathname.startsWith('/tiles/')) {
             this.tileRequests.push({ path: url.pathname, version: url.searchParams.get('v') });
-            response.writeHead(200, { 'Content-Type': 'image/png', 'Cache-Control': 'no-store' });
-            response.end(PIXEL);
+            setTimeout(() => {
+                response.writeHead(200, { 'Content-Type': 'image/png', 'Cache-Control': 'no-store' });
+                response.end(PIXEL);
+            }, this.tileDelayMillis);
             return;
         }
         if (url.pathname === '/geo' || url.pathname.startsWith('/geo/')) {
@@ -93,9 +97,11 @@ export class TestServer {
             const x = Number(match[1]);
             const z = Number(match[2]);
             this.geoRequests.push({ at: Date.now(), path: url.pathname });
-            const body = JSON.stringify({ longitude: x / 1000, latitude: z / 1000 });
-            response.writeHead(200, { 'Content-Type': 'application/json' });
-            response.end(body);
+            setTimeout(() => {
+                const body = JSON.stringify({ longitude: x / 1000, latitude: z / 1000 });
+                response.writeHead(200, { 'Content-Type': 'application/json' });
+                response.end(body);
+            }, this.geoDelayMillis);
             return;
         }
         if (url.pathname === '/error') {
