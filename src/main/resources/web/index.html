@@ -205,6 +205,15 @@ let pendingGeoRequests = 0;
 const updateLoadingIndicator = () => {
     loadingIndicator.style.display = pendingTiles + pendingGeoRequests > 0 ? 'block' : 'none';
 };
+const trackGeoRequest = (request) => {
+    pendingGeoRequests++;
+    updateLoadingIndicator();
+    request.finally(() => {
+        pendingGeoRequests--;
+        updateLoadingIndicator();
+    });
+    return request;
+};
 const makeTiles = () => {
     const layer = L.gridLayer({
         tileSize: TILE_SIZE,
@@ -398,7 +407,7 @@ const selectResult = (item) => {
     }
     const longitude = Number(item.dataset.lon);
     const latitude = Number(item.dataset.lat);
-    fetch('/locate/' + longitude + '/' + latitude)
+    trackGeoRequest(fetch('/locate/' + longitude + '/' + latitude))
         .then((response) => (response.ok ? response.json() : Promise.reject()))
         .then((block) => {
             searchResults.classList.add('hidden');
@@ -446,6 +455,7 @@ const renderResults = (places) => {
         }
         searchResults.appendChild(item);
     }
+    highlightResult(0);
     searchResults.classList.remove('hidden');
 };
 const search = () => {
@@ -456,7 +466,7 @@ const search = () => {
         return;
     }
     const version = ++searchVersion;
-    fetch(SEARCH_URL + encodeURIComponent(query))
+    trackGeoRequest(fetch(SEARCH_URL + encodeURIComponent(query)))
         .then((response) => (response.ok ? response.json() : Promise.reject()))
         .then((body) => {
             if (version === searchVersion) {

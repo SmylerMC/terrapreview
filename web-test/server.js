@@ -45,6 +45,7 @@ export class TestServer {
         this.error = null;
         this.tileDelayMillis = 0;
         this.geoDelayMillis = 0;
+        this.searchDelayMillis = 0;
         this.searchRequests = [];
         this.locateRequests = [];
         this.clients = new Set();
@@ -132,8 +133,10 @@ export class TestServer {
             this.searchRequests.push({ at: Date.now(), query });
             const features = this.searchResults.filter((place) =>
                 place.properties.name.toLowerCase().includes(query.toLowerCase().trim()));
-            response.writeHead(200, { 'Content-Type': 'application/json' });
-            response.end(JSON.stringify({ features }));
+            setTimeout(() => {
+                response.writeHead(200, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ features }));
+            }, this.searchDelayMillis);
             return;
         }
         if (url.pathname === '/locate' || url.pathname.startsWith('/locate/')) {

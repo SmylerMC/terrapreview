@@ -656,6 +656,58 @@ describe('TerraPreview web UI', function () {
             const cleared = await page.evaluate(() => document.getElementById('search-input').value === '');
             assert.ok(cleared, 'the search input should be cleared after selecting with Enter');
         });
+        it('highlights the first result as the Enter target', async function () {
+            await openMap();
+            await type('on');
+            assert.ok(
+                await eventually(async () => (await results()).length === 2, 10_000),
+                'searching for on should find two places',
+            );
+            assert.equal(
+                await page.evaluate(
+                    () => document.querySelector('#search-results li.selected')?.dataset.lat,
+                ),
+                '51.5072',
+                'the first result should be highlighted when the results appear',
+            );
+            const press = (key) =>
+                page.evaluate((key) => {
+                    document.getElementById('search-input').dispatchEvent(
+                        new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }),
+                    );
+                }, key);
+            await press('Enter');
+            assert.ok(
+                await eventually(async () => server.locateRequests.length > 0, 10_000),
+                'Enter should locate the highlighted first result',
+            );
+        });
+        it('shows the loading indicator while a search request is pending', async function () {
+            await openMap();
+            assert.ok(
+                await eventually(
+                    () => page.evaluate(() => document.getElementById('loading-indicator').style.display === 'none'),
+                    30_000,
+                ),
+                'the loading indicator should start hidden once the initial state settles',
+            );
+            server.searchDelayMillis = 1500;
+            await type('par');
+            assert.ok(
+                await eventually(
+                    () => page.evaluate(() => document.getElementById('loading-indicator').style.display === 'block'),
+                    30_000,
+                ),
+                'the loading indicator should be visible while the geocoding request is in flight',
+            );
+            assert.ok(
+                await eventually(
+                    () => page.evaluate(() => document.getElementById('loading-indicator').style.display === 'none'),
+                    30_000,
+                ),
+                'the loading indicator should hide once the geocoding request completes',
+            );
+        });
         it('shows no results while the query is too short', async function () {
             await openMap();
             await type('p');
