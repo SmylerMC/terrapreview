@@ -28,6 +28,7 @@ export class TestServer {
     constructor() {
         this.tileRequests = [];
         this.geoRequests = [];
+        this.error = null;
         this.clients = new Set();
         this.server = http.createServer((request, response) => this.handle(request, response));
     }
@@ -89,6 +90,11 @@ export class TestServer {
             const body = JSON.stringify({ longitude: x / 1000, latitude: z / 1000 });
             response.writeHead(200, { 'Content-Type': 'application/json' });
             response.end(body);
+            return;
+        }
+        if (url.pathname === '/error') {
+            response.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+            response.end(JSON.stringify(this.error));
             return;
         }
         if (url.pathname === '/events') {

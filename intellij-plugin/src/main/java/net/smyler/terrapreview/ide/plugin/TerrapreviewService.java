@@ -14,8 +14,10 @@ import net.smyler.terrapreview.ConfigWatcher;
 import net.smyler.terrapreview.EarthPreview;
 import net.smyler.terrapreview.GeneratorSettingsFile;
 import net.smyler.terrapreview.MinecraftClientJar;
+import net.smyler.terrapreview.Preview;
 import net.smyler.terrapreview.PreviewWebServer;
 import net.smyler.terrapreview.TerraIntegration;
+import net.smyler.terrapreview.UnavailablePreview;
 
 /**
  * Runs the Terrapreview web server and configuration watcher for an open project.
@@ -27,6 +29,7 @@ public final class TerrapreviewService implements Disposable {
     private final BlockTextures textures;
     private final Path configRoot;
     private final PreviewWebServer server;
+    private String startupError;
     private final ConfigWatcher watcher;
     private boolean running;
 
@@ -41,9 +44,25 @@ public final class TerrapreviewService implements Disposable {
         this.textures = loadTextures();
         this.configRoot = Files.createDirectories(configRootOf(project));
         setConfigRoot(this.configRoot);
-        EarthPreview preview = this.newPreview();
-        this.server = new PreviewWebServer(preview, preview.defaultCenterChunk(), PreviewWebServer.ANY_PORT);
+        Preview preview;
+        double[] centerChunk;
+        try {
+            EarthPreview earthPreview = new EarthPreview(GeneratorSettingsFile.tryLoad(this.configRoot), this.textures);
+            preview = earthPreview;
+            centerChunk = earthPreview.defaultCenterChunk();
+            // CHECKSTYLE:OFF: IllegalCatch - an invalid user configuration must not prevent the server from starting
+        } catch (IOException | RuntimeException e) {
+            LOGGER.error("The Terra-- configuration is invalid, serving an empty preview", e);
+            preview = new UnavailablePreview();
+            centerChunk = new double[] {0, 0};
+            this.startupError = "The Terra-- configuration is invalid: " + e.getMessage();
+            // CHECKSTYLE:ON
+        }
+        this.server = new PreviewWebServer(preview, centerChunk, PreviewWebServer.ANY_PORT);
         this.server.start();
+        if (this.startupError != null) {
+            this.server.setError(this.startupError);
+        }
         this.watcher = this.newWatcher();
         this.watcher.start();
         this.running = true;
@@ -74,11 +93,18 @@ public final class TerrapreviewService implements Disposable {
      * Rebuilds the previewed world from the current configuration files.
      */
     public void reloadPreview() {
-        this.server.setPreview(this.newPreview());
+        try {
+            this.server.setPreview(this.newPreview());
+            // CHECKSTYLE:OFF: IllegalCatch - an invalid user configuration must not kill the watcher
+        } catch (IOException | RuntimeException e) {
+            LOGGER.error("The new configuration is invalid, keeping the previous world", e);
+            this.server.setError("Could not reload the Terra-- configuration: " + e.getMessage());
+            // CHECKSTYLE:ON
+        }
     }
 
-    private EarthPreview newPreview() {
-        return new EarthPreview(GeneratorSettingsFile.load(this.configRoot), this.textures);
+    private EarthPreview newPreview() throws IOException {
+        return new EarthPreview(GeneratorSettingsFile.tryLoad(this.configRoot), this.textures);
     }
 
     private static void setConfigRoot(Path configRoot) {

@@ -413,6 +413,42 @@ class TerraPreviewTest {
         }
     }
 
+    private static final String ERROR_ENDPOINT = "/error";
+    private static final int TILE_TEST_ZOOM = 2;
+    private static final int TILE_TEST_X = -3;
+    private static final int TILE_TEST_Z = 7;
+
+    @Test
+    void errorEndpointServesTheLastError() throws IOException, InterruptedException {
+        PreviewWebServer server = new PreviewWebServer((_, _, _) -> STUB_TILE);
+        server.start();
+        try {
+            HttpResponse<String> none = this.get(BASE_URL + ERROR_ENDPOINT, HttpResponse.BodyHandlers.ofString());
+            assertEquals("null", none.body());
+            server.setError("Could not reload the Terra-- configuration: invalid json");
+            HttpResponse<String> error = this.get(BASE_URL + ERROR_ENDPOINT, HttpResponse.BodyHandlers.ofString());
+            assertEquals("\"Could not reload the Terra-- configuration: invalid json\"", error.body());
+            assertEquals(
+                    "application/json",
+                    error.headers().firstValue(CONTENT_TYPE_HEADER).orElseThrow());
+            server.setPreview((_, _, _) -> STUB_TILE);
+            HttpResponse<String> cleared = this.get(BASE_URL + ERROR_ENDPOINT, HttpResponse.BodyHandlers.ofString());
+            assertEquals("null", cleared.body());
+        } finally {
+            server.stop();
+        }
+    }
+
+    @Test
+    void unavailablePreviewServesBlankWhiteTiles() {
+        Preview preview = new UnavailablePreview();
+        BufferedImage tile = preview.renderTile(TILE_TEST_ZOOM, TILE_TEST_X, TILE_TEST_Z);
+        assertEquals(EarthPreview.TILE_SIZE, tile.getWidth());
+        assertEquals(EarthPreview.TILE_SIZE, tile.getHeight());
+        assertEquals(Color.WHITE.getRGB(), tile.getRGB(0, 0));
+        assertEquals(Color.WHITE.getRGB(), tile.getRGB(tile.getWidth() - 1, tile.getHeight() - 1));
+    }
+
     @Test
     void previewPageLocksZoomAndUsesChunkTiles() {
         PreviewWebServer server = new PreviewWebServer((_, _, _) -> STUB_TILE);
