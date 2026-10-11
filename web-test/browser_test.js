@@ -538,7 +538,7 @@ describe('TerraPreview web UI', function () {
             const requests = server.searchRequests.map((request) => request.query);
             assert.deepEqual(requests, ['paris'], 'only one request should be sent after typing stops');
         });
-        it('teleports to the clicked result and marks it', async function () {
+        it('teleports to the clicked result and clears the search', async function () {
             await openMap();
             await type('par');
             assert.ok(
@@ -559,11 +559,10 @@ describe('TerraPreview web UI', function () {
                 Math.abs(center.lat - 48.8566) < 0.01 && Math.abs(center.lng - 2.3522) < 0.01,
                 `the map should teleport to Paris, got ${JSON.stringify(center)}`,
             );
-            const marker = await page.evaluate(() => {
-                const circle = document.querySelector('#map path.leaflet-interactive');
-                return circle !== null;
-            });
-            assert.ok(marker, 'a marker should be added on the map');
+            const noMarker = await page.evaluate(() => document.querySelector('#map path.leaflet-interactive') === null);
+            assert.ok(noMarker, 'no marker should be added on the map');
+            const cleared = await page.evaluate(() => document.getElementById('search-input').value === '');
+            assert.ok(cleared, 'the search input should be cleared after selecting a result');
             assert.equal(server.locateRequests.length, 1, 'exactly one locate request should be sent');
             assert.ok(
                 await page.evaluate(() =>

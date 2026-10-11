@@ -379,7 +379,6 @@ const searchResults = document.getElementById('search-results');
 const SEARCH_ATTRIBUTION = 'Search by <a href="' + GEOCODER_URL + '">' + GEOCODER_NAME + '</a>';
 let searchVersion = 0;
 let searchTimer = null;
-let searchMarker = null;
 const titleOfPlace = (place) =>
     place.properties.name || place.properties.street || place.properties.city ||
     place.properties.county || place.properties.state || place.properties.country || 'Unnamed place';
@@ -446,17 +445,8 @@ searchResults.addEventListener('mousedown', (event) => {
         .then((response) => (response.ok ? response.json() : Promise.reject()))
         .then((block) => {
             searchResults.classList.add('hidden');
+            searchInput.value = '';
             map.attributionControl.addAttribution(SEARCH_ATTRIBUTION);
-            if (searchMarker) {
-                map.removeLayer(searchMarker);
-            }
-            searchMarker = L.circleMarker([block.z / BLOCKS_PER_UNIT, block.x / BLOCKS_PER_UNIT], {
-                radius: 10,
-                color: '#fff',
-                weight: 2,
-                fillColor: '#e33',
-                fillOpacity: 0.9,
-            }).addTo(map);
             map.setView([block.z / BLOCKS_PER_UNIT, block.x / BLOCKS_PER_UNIT], @MAX_ZOOM@);
         }, () => {
             searchResults.textContent = '';
