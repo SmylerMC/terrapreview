@@ -54,21 +54,57 @@ public final class Contours {
      */
     public static void draw(
             Graphics2D graphics, int[][] heights, boolean[][] water, int pixelsPerCell, float visibility) {
-        graphics.setColor(lineColor(visibility));
+        drawEdges(
+                graphics,
+                heights.length == 0 ? 0 : heights[0].length,
+                heights.length,
+                pixelsPerCell,
+                (x, z) -> !water[x][z] && heights[x + 1][z] != heights[x][z] && !water[x + 1][z],
+                (x, z) -> !water[x][z] && heights[x][z + 1] != heights[x][z] && !water[x][z + 1],
+                lineColor(visibility));
+    }
+
+    /**
+     * Draws lines around the zones of a boolean grid on the given graphics, in the same style as the elevation
+     * contour lines: a line is drawn on the edge between two horizontally adjacent grid entries whenever exactly
+     * one of them is in a zone. Unlike the elevation lines, these do not fade at low zoom levels.
+     *
+     * @param graphics the graphics to draw the lines on
+     * @param zones which blocks are in a zone, as {@code zones[x][z]}, with a one block margin
+     * @param color the color of the lines
+     * @param pixelsPerCell the size of a block, in pixels
+     */
+    public static void drawZones(Graphics2D graphics, boolean[][] zones, Color color, int pixelsPerCell) {
+        drawEdges(
+                graphics,
+                zones.length == 0 ? 0 : zones[0].length,
+                zones.length,
+                pixelsPerCell,
+                (x, z) -> zones[x][z] != zones[x + 1][z],
+                (x, z) -> zones[x][z] != zones[x][z + 1],
+                color);
+    }
+
+    private static void drawEdges(
+            Graphics2D graphics,
+            int cellsZ,
+            int cellsX,
+            int pixelsPerCell,
+            java.util.function.BiPredicate<Integer, Integer> eastEdge,
+            java.util.function.BiPredicate<Integer, Integer> southEdge,
+            Color color) {
+        graphics.setColor(color);
         graphics.setStroke(new BasicStroke(LINE_WIDTH));
-        int cellsX = heights.length;
         if (cellsX == 0) {
             return;
         }
-        int cellsZ = heights[0].length;
         for (int x = 0; x < cellsX; x++) {
             for (int z = 0; z < cellsZ; z++) {
-                int height = heights[x][z];
-                if (x + 1 < cellsX && !water[x][z] && !water[x + 1][z] && heights[x + 1][z] != height) {
+                if (x + 1 < cellsX && eastEdge.test(x, z)) {
                     int lineX = (x + 1) * pixelsPerCell;
                     graphics.drawLine(lineX, z * pixelsPerCell, lineX, (z + 1) * pixelsPerCell);
                 }
-                if (z + 1 < cellsZ && !water[x][z] && !water[x][z + 1] && heights[x][z + 1] != height) {
+                if (z + 1 < cellsZ && southEdge.test(x, z)) {
                     int y = (z + 1) * pixelsPerCell;
                     graphics.drawLine(x * pixelsPerCell, y, (x + 1) * pixelsPerCell, y);
                 }
