@@ -12,6 +12,10 @@ class ContoursTest {
 
     private static final int CELL = 16;
 
+    private static final double HALF_PIXEL_CELL = 0.5;
+
+    private static final int ALTERNATING_BLOCKS = 4;
+
     private static final int MARGIN = 1;
 
     private static final int GRID_SIZE = 3;
@@ -161,6 +165,25 @@ class ContoursTest {
     }
 
     @Test
+    void aHalfPixelCellStillDrawsALineOnItsEdge() {
+        // Zoom -5 renders blocks at half a pixel: the line must still fall on the rounded edge position.
+        // A single row of alternating heights keeps the lines vertical, so they overlap at most twice.
+        int width = (int) Math.ceil(ALTERNATING_BLOCKS * HALF_PIXEL_CELL);
+        BufferedImage image = new BufferedImage(width, 1, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D graphics = image.createGraphics();
+        graphics.setColor(BACKGROUND);
+        graphics.fillRect(0, 0, width, 1);
+        int[][] blocks = new int[ALTERNATING_BLOCKS][1];
+        for (int x = 0; x < ALTERNATING_BLOCKS; x++) {
+            blocks[x][0] = x % 2 == 0 ? LOW : MID;
+        }
+        Contours.draw(graphics, blocks, noWater(blocks), HALF_PIXEL_CELL, FULL_VISIBILITY);
+        graphics.dispose();
+        assertTrue(isLine(image.getRGB(1, 0) & RGB_MASK));
+        assertTrue((image.getRGB(0, 0) & RGB_MASK) == (BACKGROUND.getRGB() & RGB_MASK));
+    }
+
+    @Test
     void anEmptyGridDrawsNothing() {
         assertEquals(0, linePixelCount(draw(new int[0][0])));
     }
@@ -177,6 +200,10 @@ class ContoursTest {
     }
 
     private static BufferedImage draw(int[][] blocks, boolean[][] water, float visibility) {
+        return draw(blocks, water, CELL, visibility);
+    }
+
+    private static BufferedImage draw(int[][] blocks, boolean[][] water, double cell, float visibility) {
         int size = blocks.length;
         if (size == 0) {
             BufferedImage empty = new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB);
@@ -186,12 +213,14 @@ class ContoursTest {
             return empty;
         }
         int depth = blocks[0].length;
-        BufferedImage image = new BufferedImage(size * CELL, depth * CELL, BufferedImage.TYPE_INT_ARGB);
+        int width = Math.max(1, (int) Math.ceil(size * cell));
+        int height = Math.max(1, (int) Math.ceil(depth * cell));
+        BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
         Graphics2D graphics = image.createGraphics();
         graphics.setColor(BACKGROUND);
-        graphics.fillRect(0, 0, size * CELL, depth * CELL);
-        graphics.translate(-MARGIN * CELL, -MARGIN * CELL);
-        Contours.draw(graphics, withMargin(blocks), withMargin(water), CELL, visibility);
+        graphics.fillRect(0, 0, width, height);
+        graphics.translate((int) Math.round(-MARGIN * cell), (int) Math.round(-MARGIN * cell));
+        Contours.draw(graphics, withMargin(blocks), withMargin(water), cell, visibility);
         graphics.dispose();
         return image;
     }

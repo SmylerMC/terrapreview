@@ -4,6 +4,7 @@ import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.LoadingCache;
 import java.awt.Color;
 import java.awt.Graphics2D;
+import java.awt.geom.Rectangle2D;
 import java.awt.image.BufferedImage;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
@@ -250,7 +251,7 @@ public final class EarthPreview implements Preview {
     public BufferedImage renderTile(int zoom, int tileX, int tileZ) {
         int scale = 1 << Math.abs(zoom);
         int blocksPerTile = zoom >= 0 ? CHUNK_SIZE / scale : CHUNK_SIZE * scale;
-        int pixelsPerBlock = zoom >= 0 ? PIXELS_PER_BLOCK * scale : PIXELS_PER_BLOCK / scale;
+        double pixelsPerBlock = zoom >= 0 ? (double) PIXELS_PER_BLOCK * scale : (double) PIXELS_PER_BLOCK / scale;
         BufferedImage image = new BufferedImage(TILE_SIZE, TILE_SIZE, BufferedImage.TYPE_INT_RGB);
         Graphics2D graphics = image.createGraphics();
         int[][] heights = new int[blocksPerTile + EDGE][blocksPerTile + EDGE];
@@ -304,11 +305,12 @@ public final class EarthPreview implements Preview {
      * @param pixelsPerBlock the size of a block in the tile, in pixels
      * @return the strength of the lines, from 0 for invisible to 1 for full strength
      */
-    static float contourVisibility(int pixelsPerBlock) {
-        return Math.min(1F, pixelsPerBlock / (float) PIXELS_PER_BLOCK);
+    static float contourVisibility(double pixelsPerBlock) {
+        return (float) Math.min(1D, pixelsPerBlock / (double) PIXELS_PER_BLOCK);
     }
 
-    private void drawBlock(Graphics2D graphics, CachedChunkData chunk, TerrainContext terrain, int x, int y, int size) {
+    private void drawBlock(
+            Graphics2D graphics, CachedChunkData chunk, TerrainContext terrain, double x, double y, double size) {
         int blockX = terrain.blockX();
         int blockZ = terrain.blockZ();
         int surfaceHeight = terrain.surfaceHeight();
@@ -329,14 +331,18 @@ public final class EarthPreview implements Preview {
         Optional<BufferedImage> texture =
                 this.textures == null ? Optional.empty() : this.textures.topTexture(block, blockX, blockZ);
         if (water) {
-            Color depthColor = texture.isPresent() ? null : waterDepthColor(fallback, surfaceHeight - groundHeight);
             if (texture.isPresent()) {
-                graphics.drawImage(texture.get(), x, y, size, size, null);
-                graphics.drawImage(
-                        this.deepWaterTexture(texture.get(), surfaceHeight - groundHeight), x, y, size, size, null);
+                BufferedImage sprite = texture.get();
+                BufferedImage deep = this.deepWaterTexture(sprite, surfaceHeight - groundHeight);
+                int fromX = (int) Math.floor(x);
+                int fromY = (int) Math.floor(y);
+                int toX = (int) Math.ceil(x + size);
+                int toY = (int) Math.ceil(y + size);
+                graphics.drawImage(sprite, fromX, fromY, toX, toY, 0, 0, sprite.getWidth(), sprite.getHeight(), null);
+                graphics.drawImage(deep, fromX, fromY, toX, toY, 0, 0, deep.getWidth(), deep.getHeight(), null);
             } else {
-                graphics.setColor(depthColor);
-                graphics.fillRect(x, y, size, size);
+                graphics.setColor(waterDepthColor(fallback, surfaceHeight - groundHeight));
+                graphics.fill(new Rectangle2D.Double(x, y, size, size));
             }
             return;
         }
@@ -347,16 +353,20 @@ public final class EarthPreview implements Preview {
         double southEast = Shading.cornerBrightness(surfaceHeight, surfaceHeight, surfaceHeight, surfaceHeight);
         if (texture.isPresent()) {
             BufferedImage shaded = this.shadedTexture(texture.get(), northWest, northEast, southWest, southEast);
-            graphics.drawImage(shaded, x, y, size, size, null);
+            int fromX = (int) Math.floor(x);
+            int fromY = (int) Math.floor(y);
+            int toX = (int) Math.ceil(x + size);
+            int toY = (int) Math.ceil(y + size);
+            graphics.drawImage(shaded, fromX, fromY, toX, toY, 0, 0, shaded.getWidth(), shaded.getHeight(), null);
         } else {
             Color shadedFallback = Shading.shade(fallback, northWest, northEast, southWest, southEast);
             graphics.setColor(shadedFallback);
-            graphics.fillRect(x, y, size, size);
+            graphics.fill(new Rectangle2D.Double(x, y, size, size));
         }
         Color treeOverlay = TreeCover.overlayColor(TreeCover.treeChance(chunk, inChunkX, inChunkZ));
         if (treeOverlay != null) {
             graphics.setColor(treeOverlay);
-            graphics.fillRect(x, y, size, size);
+            graphics.fill(new Rectangle2D.Double(x, y, size, size));
         }
     }
 
