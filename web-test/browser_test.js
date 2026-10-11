@@ -521,21 +521,18 @@ describe('TerraPreview web UI', function () {
             const requests = server.searchRequests.map((request) => request.query);
             assert.deepEqual(requests, ['paris'], 'only one request should be sent after typing stops');
         });
-        it('flies to the clicked result and marks it', async function () {
+        it('teleports to the clicked result and marks it', async function () {
             await openMap();
             await type('par');
             assert.ok(
                 await eventually(async () => (await results()).length === 1, 10_000),
                 'searching for par should find Paris',
             );
-            const before = await page.evaluate(() => map.getCenter());
             await page.click('#search-results li');
+            const center = await page.evaluate(() => map.getCenter());
             assert.ok(
-                await eventually(async () => {
-                    const center = await page.evaluate(() => map.getCenter());
-                    return Math.abs(center.lat - 48.8566) < 0.01 && Math.abs(center.lng - 2.3522) < 0.01;
-                }, 10_000),
-                'the map should fly to Paris',
+                Math.abs(center.lat - 48.8566) < 0.01 && Math.abs(center.lng - 2.3522) < 0.01,
+                `the map should teleport to Paris, got ${JSON.stringify(center)}`,
             );
             const marker = await page.evaluate(() => {
                 const circle = document.querySelector('#map path.leaflet-interactive');

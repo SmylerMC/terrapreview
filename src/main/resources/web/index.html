@@ -377,12 +377,22 @@ if (initialView) {
 const GEOCODER_NAME = '@GEOCODER_NAME@';
 const GEOCODER_URL = '@GEOCODER_URL@';
 const SEARCH_DEBOUNCE_MILLIS = 250;
+const SEARCH_URL = GEOCODER_URL + '/api/?limit=5&osm_tag=place&q=';
 const searchInput = document.getElementById('search-input');
 const searchResults = document.getElementById('search-results');
 const SEARCH_ATTRIBUTION = 'Search by <a href="' + GEOCODER_URL + '">' + GEOCODER_NAME + '</a>';
 let searchVersion = 0;
 let searchTimer = null;
 let searchMarker = null;
+const titleOfPlace = (place) =>
+    place.properties.name || place.properties.street || place.properties.city ||
+    place.properties.county || place.properties.state || place.properties.country || 'Unnamed place';
+const descriptionOfPlace = (place) =>
+    [place.properties.city, place.properties.county, place.properties.state, place.properties.country]
+        .filter((part) => part && part !== place.properties.name)
+        .filter((part, index, parts) => parts.indexOf(part) === index)
+        .join(', ');
+const kindOfPlace = (place) => place.properties.osm_value || '';
 const renderResults = (places) => {
     searchResults.textContent = '';
     if (places.length === 0) {
@@ -391,16 +401,18 @@ const renderResults = (places) => {
     }
     for (const place of places) {
         const item = document.createElement('li');
-        item.dataset.lon = place.longitude;
-        item.dataset.lat = place.latitude;
-        item.textContent = place.name;
-        if (place.description) {
-            item.textContent += ' (' + place.description + ')';
+        item.dataset.lon = place.geometry.coordinates[0];
+        item.dataset.lat = place.geometry.coordinates[1];
+        item.textContent = titleOfPlace(place);
+        const description = descriptionOfPlace(place);
+        if (description) {
+            item.textContent += ' (' + description + ')';
         }
-        if (place.kind) {
+        const kind = kindOfPlace(place);
+        if (kind) {
             const kindSpan = document.createElement('span');
             kindSpan.className = 'search-kind';
-            kindSpan.textContent = place.kind.replaceAll('_', ' ');
+            kindSpan.textContent = kind.replaceAll('_', ' ');
             item.appendChild(kindSpan);
         }
         searchResults.appendChild(item);
@@ -415,11 +427,11 @@ const search = () => {
         return;
     }
     const version = ++searchVersion;
-    fetch('/search?q=' + encodeURIComponent(query))
+    fetch(SEARCH_URL + encodeURIComponent(query))
         .then((response) => (response.ok ? response.json() : Promise.reject()))
         .then((body) => {
             if (version === searchVersion) {
-                renderResults(body.results || []);
+                renderResults(body.features || []);
             }
         }, () => {});
 };
@@ -449,7 +461,7 @@ searchResults.addEventListener('mousedown', (event) => {
                 fillColor: '#e33',
                 fillOpacity: 0.9,
             }).addTo(map);
-            map.flyTo([block.z / BLOCKS_PER_UNIT, block.x / BLOCKS_PER_UNIT], @MAX_ZOOM@);
+            map.setView([block.z / BLOCKS_PER_UNIT, block.x / BLOCKS_PER_UNIT], @MAX_ZOOM@);
         }, () => {
             searchResults.textContent = '';
             const message = document.createElement('li');

@@ -28,18 +28,12 @@ export class TestServer {
     constructor() {
         this.searchResults = [
             {
-                name: 'Paris',
-                description: 'Île-de-France, France',
-                kind: 'city',
-                longitude: 2.3522,
-                latitude: 48.8566,
+                geometry: { coordinates: [2.3522, 48.8566] },
+                properties: { name: 'Paris', city: 'Paris', state: 'Île-de-France', country: 'France', osm_value: 'city' },
             },
             {
-                name: 'London',
-                description: 'England, United Kingdom',
-                kind: 'city',
-                longitude: -0.1276,
-                latitude: 51.5072,
+                geometry: { coordinates: [-0.1276, 51.5072] },
+                properties: { name: 'London', state: 'England', country: 'United Kingdom', osm_value: 'city' },
             },
         ];
         this.tileRequests = [];
@@ -89,7 +83,7 @@ export class TestServer {
             .replaceAll('@CENTER_LAT@', String(CENTER_LAT))
             .replaceAll('@CENTER_LNG@', String(CENTER_LNG))
             .replaceAll('@GEOCODER_NAME@', 'Photon')
-            .replaceAll('@GEOCODER_URL@', 'https://photon.komoot.io');
+            .replaceAll('@GEOCODER_URL@', this.url);
     }
 
     async handle(request, response) {
@@ -129,19 +123,13 @@ export class TestServer {
             response.end(JSON.stringify(this.error));
             return;
         }
-        if (url.pathname === '/search') {
-            const match = /^\/search\?q=(.*)$/.exec(request.url);
-            if (!match) {
-                response.writeHead(404);
-                response.end();
-                return;
-            }
-            const query = decodeURIComponent(match[1]);
+        if (url.pathname === '/api/') {
+            const query = url.searchParams.get('q') ?? '';
             this.searchRequests.push({ at: Date.now(), query });
             const features = this.searchResults.filter((place) =>
-                place.name.toLowerCase().includes(query.toLowerCase().trim()));
+                place.properties.name.toLowerCase().includes(query.toLowerCase().trim()));
             response.writeHead(200, { 'Content-Type': 'application/json' });
-            response.end(JSON.stringify({ results: features }));
+            response.end(JSON.stringify({ features }));
             return;
         }
         if (url.pathname === '/locate' || url.pathname.startsWith('/locate/')) {

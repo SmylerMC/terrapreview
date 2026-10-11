@@ -1,7 +1,5 @@
 package net.smyler.terrapreview;
 
-import com.google.gson.Gson;
-import com.google.gson.JsonParseException;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import java.awt.image.BufferedImage;
@@ -12,15 +10,12 @@ import java.io.UncheckedIOException;
 import java.net.HttpURLConnection;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
-import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 import javax.imageio.ImageIO;
 
 /**
@@ -53,12 +48,6 @@ public final class PreviewWebServer {
     private static final Pattern TILE_PATTERN = Pattern.compile("/tiles/(-?\\d+)/(-?\\d+)/(-?\\d+)\\.png");
     private static final Pattern GEO_PATTERN = Pattern.compile("/geo/(-?\\d+(?:\\.\\d+)?)/(-?\\d+(?:\\.\\d+)?)");
     private static final Pattern LOCATE_PATTERN = Pattern.compile("/locate/(-?\\d+(?:\\.\\d+)?)/(-?\\d+(?:\\.\\d+)?)");
-    private static final Pattern SEARCH_QUERY_PATTERN = Pattern.compile("q=([^&]*)");
-
-    private static final Gson GSON = new Gson();
-
-    private static final String FEATURE_SEPARATOR = ",";
-
     private static final String JSON_OBJECT_END = "}";
 
     private static final String GEOCODER_NAME = "Photon";
@@ -69,8 +58,6 @@ public final class PreviewWebServer {
     private static final String PAGE_TEMPLATE = readResource(INDEX_RESOURCE);
 
     private volatile Preview preview;
-
-    private final PhotonGeocoder geocoder;
 
     private final double[] centerChunk;
 
@@ -112,23 +99,9 @@ public final class PreviewWebServer {
      * @param port the port to listen on
      */
     public PreviewWebServer(Preview preview, double[] centerChunk, int port) {
-        this(preview, centerChunk, port, new PhotonGeocoder());
-    }
-
-    /**
-     * Creates a new web server serving the given preview, initially centered on the given chunk, listening on the
-     * given port, searching places with the given geocoder.
-     *
-     * @param preview the preview to serve
-     * @param centerChunk the x and z coordinates of the chunk to center the map on
-     * @param port the port to listen on
-     * @param geocoder the geocoder to use for place searches
-     */
-    public PreviewWebServer(Preview preview, double[] centerChunk, int port, PhotonGeocoder geocoder) {
         this.preview = preview;
         this.centerChunk = centerChunk.clone();
         this.port = port;
-        this.geocoder = geocoder;
     }
 
     /**
@@ -205,7 +178,6 @@ public final class PreviewWebServer {
         this.server.createContext("/events", this::serveEvents);
         this.server.createContext("/error", this::serveError);
         this.server.createContext("/geo", this::serveGeo);
-        this.server.createContext("/search", this::serveSearch);
         this.server.createContext("/locate", this::serveLocate);
         this.server.createContext("/tiles", this::serveTile);
         this.server.createContext("/", this::servePreview);
@@ -243,7 +215,7 @@ public final class PreviewWebServer {
                 .replace("@CENTER_LAT@", Double.toString(centerLat))
                 .replace("@CENTER_LNG@", Double.toString(centerLng))
                 .replace("@GEOCODER_NAME@", GEOCODER_NAME)
-                .replace("@GEOCODER_URL@", PhotonGeocoder.PHOTON_URL);
+                .replace("@GEOCODER_URL@", "https://photon.komoot.io");
     }
 
     private static String readResource(String name) {
@@ -294,26 +266,6 @@ public final class PreviewWebServer {
             return;
         }
         sendJson(exchange, "{\"x\":" + block[0] + ",\"z\":" + block[1] + JSON_OBJECT_END);
-    }
-
-    private void serveSearch(HttpExchange exchange) throws IOException {
-        String rawQuery = exchange.getRequestURI().getRawQuery();
-        Matcher match = rawQuery == null ? null : SEARCH_QUERY_PATTERN.matcher(rawQuery);
-        String query = match != null && match.find()
-                ? URLDecoder.decode(match.group(ZOOM_CAPTURE_GROUP), StandardCharsets.UTF_8)
-                        .strip()
-                : "";
-        List<PhotonGeocoder.Place> places;
-        try {
-            places = this.geocoder.search(query);
-        } catch (IOException | JsonParseException ignored) {
-            exchange.sendResponseHeaders(HttpURLConnection.HTTP_UNAVAILABLE, -1L);
-            return;
-        }
-        String features = places.stream()
-                .map(PreviewWebServer::searchResultJson)
-                .collect(Collectors.joining(FEATURE_SEPARATOR, "[", "]"));
-        sendJson(exchange, "{\"results\":" + features + JSON_OBJECT_END);
     }
 
     private void serveGeo(HttpExchange exchange) throws IOException {
