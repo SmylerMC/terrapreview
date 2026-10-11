@@ -43,6 +43,7 @@ class TerraPreviewTest {
     private static final BufferedImage STUB_TILE = new BufferedImage(4, 2, BufferedImage.TYPE_INT_RGB);
     private static final String CONTENT_TYPE_HEADER = "Content-Type";
 <<<<<<< HEAD
+<<<<<<< HEAD
     private static final String DATA_PREFIX = "data:";
 =======
 
@@ -54,7 +55,13 @@ class TerraPreviewTest {
 
     private static final double PARIS_LATITUDE = 48.8566D;
 
+=======
+    private static final String JSON_CONTENT_TYPE = "application/json";
+>>>>>>> ee66ab5 (fix: adapt the search feature to the rebased master)
     private static final String LOCALHOST_URL = "http://localhost:";
+    private static final double GEO_TEST_SCALE = 1000D;
+    private static final double PARIS_LONGITUDE = 2.3522D;
+    private static final double PARIS_LATITUDE = 48.8566D;
 
     private static final String BASE_URL = LOCALHOST_URL + PreviewWebServer.DEFAULT_PORT;
 
@@ -382,7 +389,7 @@ class TerraPreviewTest {
             HttpResponse<String> response = this.get(BASE_URL + "/geo/12/-34", HttpResponse.BodyHandlers.ofString());
             assertEquals(HttpURLConnection.HTTP_OK, response.statusCode());
             assertEquals(
-                    JSON_CONTENT_TYPE,
+                    "application/json",
                     response.headers().firstValue(CONTENT_TYPE_HEADER).orElseThrow());
             assertEquals("{\"longitude\":0.012,\"latitude\":-0.034}", response.body());
         } finally {
@@ -588,6 +595,28 @@ class TerraPreviewTest {
             } catch (IOException _) {
                 // expected: the port is already bound on the loopback interface only
             }
+        } finally {
+            server.stop();
+        }
+    }
+
+    @Test
+    void ephemeralPortIsAssignedOnStart() throws IOException, InterruptedException {
+        PreviewWebServer server =
+                new PreviewWebServer((_, _, _) -> STUB_TILE, new double[] {0, 0}, PreviewWebServer.ANY_PORT);
+        assertEquals(PreviewWebServer.ANY_PORT, server.port());
+        server.start();
+        try {
+            assertTrue(server.port() > 0, "the ephemeral port was not assigned");
+            HttpResponse<String> response =
+                    this.get("http://localhost:" + server.port() + "/", HttpResponse.BodyHandlers.ofString());
+            assertEquals(HttpURLConnection.HTTP_OK, response.statusCode());
+        } finally {
+            server.stop();
+        }
+    }
+
+    @Test
     void locateEndpointReturnsMinecraftBlockCoordinates() throws IOException, InterruptedException {
         Preview preview = new Preview() {
             @Override
@@ -652,16 +681,6 @@ class TerraPreviewTest {
     }
 
     @Test
-    void ephemeralPortIsAssignedOnStart() throws IOException, InterruptedException {
-        PreviewWebServer server =
-                new PreviewWebServer((_, _, _) -> STUB_TILE, new double[] {0, 0}, PreviewWebServer.ANY_PORT);
-        assertEquals(PreviewWebServer.ANY_PORT, server.port());
-        server.start();
-        try {
-            assertTrue(server.port() > 0, "the ephemeral port was not assigned");
-            HttpResponse<String> response =
-                    this.get("http://localhost:" + server.port() + "/", HttpResponse.BodyHandlers.ofString());
-            assertEquals(HttpURLConnection.HTTP_OK, response.statusCode());
     void locateEndpointReportsPreviewsWithoutGeographicMapping() throws IOException, InterruptedException {
         PreviewWebServer server = new PreviewWebServer((_, _, _) -> STUB_TILE);
         server.start();

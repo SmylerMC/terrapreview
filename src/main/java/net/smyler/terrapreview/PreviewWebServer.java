@@ -286,10 +286,10 @@ public final class PreviewWebServer {
         double[] block;
         try {
             block = this.preview.geoToBlock(longitude, latitude);
-        } catch (IllegalArgumentException _) {
+        } catch (IllegalArgumentException ignored) {
             exchange.sendResponseHeaders(HttpURLConnection.HTTP_NOT_FOUND, -1L);
             return;
-        } catch (UnsupportedOperationException _) {
+        } catch (UnsupportedOperationException ignored) {
             exchange.sendResponseHeaders(HttpURLConnection.HTTP_NOT_IMPLEMENTED, -1L);
             return;
         }
@@ -306,7 +306,7 @@ public final class PreviewWebServer {
         List<PhotonGeocoder.Place> places;
         try {
             places = this.geocoder.search(query);
-        } catch (IOException | JsonParseException _) {
+        } catch (IOException | JsonParseException ignored) {
             exchange.sendResponseHeaders(HttpURLConnection.HTTP_UNAVAILABLE, -1L);
             return;
         }

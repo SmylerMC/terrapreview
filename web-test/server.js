@@ -7,7 +7,7 @@ const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src'
 
 const TILE_SIZE = 256;
 const CHUNK_SIZE = 16;
-const MIN_ZOOM = -2;
+const MIN_ZOOM = -5;
 const MAX_ZOOM = 3;
 const CENTER_LAT = TILE_SIZE / 2;
 const CENTER_LNG = TILE_SIZE / 2;
