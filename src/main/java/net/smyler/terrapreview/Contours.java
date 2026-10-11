@@ -1,0 +1,78 @@
+package net.smyler.terrapreview;
+
+import java.awt.BasicStroke;
+import java.awt.Color;
+import java.awt.Graphics2D;
+
+/**
+ * Elevation contour lines for stepped Minecraft terrain, as drawn on topographic maps.
+ *
+ * <p>Minecraft slopes are staircases of whole blocks, so a contour line is simply drawn along the boundary between
+ * two adjacent blocks of different surface heights.
+ */
+public final class Contours {
+
+    /**
+     * The color of the contour lines, translucent so the tiles under them remain visible.
+     */
+    private static final Color LINE_COLOR = new Color(0x3B, 0x2A, 0x1A, 0x66);
+
+    /**
+     * The color of the contour lines at the given visibility, translucent so the tiles under them remain visible.
+     */
+    private static Color lineColor(float visibility) {
+        float clamped = Math.max(0F, Math.min(visibility, 1F));
+        return new Color(
+                LINE_COLOR.getRed(),
+                LINE_COLOR.getGreen(),
+                LINE_COLOR.getBlue(),
+                Math.round(LINE_COLOR.getAlpha() * clamped));
+    }
+
+    /**
+     * The width of the contour lines, in pixels.
+     */
+    private static final float LINE_WIDTH = 1.0F;
+
+    private Contours() {}
+
+    /**
+     * Draws the contour lines of a stepped height grid on the given graphics.
+     *
+     * <p>A line is drawn on the edge between two horizontally adjacent grid entries whenever their heights differ,
+     * except when either of them is water: water carries its depth shading instead, so it gets neither lines nor
+     * shading. Each entry is the height of a block, as in {@code heights[x][z] = surfaceHeight(x, z)}; the grid is
+     * expected to cover one block more than the drawn area on each side, so that lines continue across the boundary
+     * of the drawn area and zones stay closed.
+     *
+     * @param graphics the graphics to draw the lines on
+     * @param heights the surface heights of the blocks, as {@code heights[x][z]}, with a one block margin
+     * @param water which blocks are water, with the same layout as the height grid
+     * @param pixelsPerCell the size of a block, in pixels
+     * @param visibility the strength of the lines, from 0 for invisible to 1 for full strength; tiles at low zoom
+     *                   levels render blocks at only a few pixels, where full strength lines would dominate them
+     */
+    public static void draw(
+            Graphics2D graphics, int[][] heights, boolean[][] water, int pixelsPerCell, float visibility) {
+        graphics.setColor(lineColor(visibility));
+        graphics.setStroke(new BasicStroke(LINE_WIDTH));
+        int cellsX = heights.length;
+        if (cellsX == 0) {
+            return;
+        }
+        int cellsZ = heights[0].length;
+        for (int x = 0; x < cellsX; x++) {
+            for (int z = 0; z < cellsZ; z++) {
+                int height = heights[x][z];
+                if (x + 1 < cellsX && !water[x][z] && !water[x + 1][z] && heights[x + 1][z] != height) {
+                    int lineX = (x + 1) * pixelsPerCell;
+                    graphics.drawLine(lineX, z * pixelsPerCell, lineX, (z + 1) * pixelsPerCell);
+                }
+                if (z + 1 < cellsZ && !water[x][z] && !water[x][z + 1] && heights[x][z + 1] != height) {
+                    int y = (z + 1) * pixelsPerCell;
+                    graphics.drawLine(x * pixelsPerCell, y, (x + 1) * pixelsPerCell, y);
+                }
+            }
+        }
+    }
+}
