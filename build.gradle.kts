@@ -31,6 +31,7 @@ dependencies {
     compileOnly("org.projectlombok:lombok:1.18.42")
     compileOnly("net.daporkchop.lib:binary:0.5.7-SNAPSHOT")
     compileOnly("org.apache.logging.log4j:log4j-api:2.24.1")
+    testImplementation("com.google.guava:guava:33.3.1-jre")
     testCompileOnly("org.projectlombok:lombok:1.18.42")
     testImplementation("org.apache.logging.log4j:log4j-core:2.24.1")
     testImplementation(platform("org.junit:junit-bom:6.1.3"))

@@ -1,6 +1,7 @@
 package net.smyler.terrapreview;
 
 import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
 import java.awt.Color;
 import java.awt.Graphics2D;
@@ -8,6 +9,7 @@ import java.awt.geom.Rectangle2D;
 import java.awt.image.BufferedImage;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import net.buildtheearth.terraminusminus.generator.CachedChunkData;
 import net.buildtheearth.terraminusminus.generator.ChunkDataLoader;
@@ -127,6 +129,49 @@ public final class EarthPreview implements Preview {
     private static final long CACHE_EXPIRY_MINUTES = 5L;
 
     /**
+     * A cache loader that never lets the wrapped Terra-- loader have more than one chunk generation in flight at a
+     * time, to work around a Terra-- bug that corrupts {@code ChunkData} generated in high concurrency scenarios.
+     *
+     * <p>Loads acquire the single permit of a semaphore, and completion of the returned future releases it for the
+     * next queued load. A semaphore is used instead of a lock because the future can complete on any thread, and
+     * only that thread knows when the load is done. Cache loads that hit an already-computed value do not reach
+     * this loader at all, and concurrent requests for the same chunk share the same in-flight future, so only
+     * distinct chunks are serialized here.
+     *
+     * @param <K> the cache key type
+     * @param <V> the cache value type
+     */
+    static final class SerializingCacheLoader<K, V> extends CacheLoader<K, CompletableFuture<V>> {
+
+        private final CacheLoader<K, CompletableFuture<V>> delegate;
+
+        private final Semaphore permits = new Semaphore(1);
+
+        SerializingCacheLoader(CacheLoader<K, CompletableFuture<V>> delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public CompletableFuture<V> load(K key) throws Exception {
+            this.permits.acquire();
+            CompletableFuture<V> future = null;
+            try {
+                future = this.delegate.load(key);
+            } finally {
+                if (future == null) {
+                    this.permits.release();
+                }
+            }
+            future.whenComplete(this::releasePermit);
+            return future;
+        }
+
+        private void releasePermit(V value, Throwable error) {
+            this.permits.release();
+        }
+    }
+
+    /**
      * The number of extra blocks sampled around a tile, for elevation contours and shading, so the lines continue
      * seamlessly across tile boundaries and zones stay closed.
      */
@@ -175,7 +220,7 @@ public final class EarthPreview implements Preview {
         this.cache = CacheBuilder.newBuilder()
                 .expireAfterAccess(CACHE_EXPIRY_MINUTES, TimeUnit.MINUTES)
                 .softValues()
-                .build(new ChunkDataLoader(settings));
+                .build(new SerializingCacheLoader<>(new ChunkDataLoader(settings)));
     }
 
     /**
