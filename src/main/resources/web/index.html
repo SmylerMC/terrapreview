@@ -24,6 +24,9 @@ html, body {
     border-radius: 0 0 6px 6px;
     pointer-events: none;
     white-space: nowrap;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 #loading-indicator {
     position: absolute;
@@ -104,6 +107,61 @@ html, body {
     width: 12px;
     height: 12px;
 }
+#search-seg {
+    position: relative;
+    pointer-events: auto;
+}
+#search-input {
+    box-sizing: border-box;
+    width: 200px;
+    padding: 0;
+    border: none;
+    background: none;
+    color: #eee;
+    font-family: inherit;
+    font-size: inherit;
+    outline: none;
+}
+#search-input::placeholder {
+    color: #999;
+}
+#search-results {
+    position: absolute;
+    top: calc(100% + 4px);
+    right: -30px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    width: 300px;
+    max-height: 320px;
+    overflow-y: auto;
+    border-radius: 0 0 6px 6px;
+    background: rgba(38, 38, 38, 0.8);
+    color: #eee;
+    text-align: left;
+}
+#search-results.hidden {
+    display: none;
+}
+#search-results li {
+    padding: 6px 12px;
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+#search-results li:hover,
+#search-results li.selected {
+    background: rgba(255, 255, 255, 0.15);
+}
+#search-results li .search-kind {
+    margin-left: 6px;
+    color: #999;
+}
+#search-results li .search-kind::before {
+    content: '·';
+    margin-right: 6px;
+}
 #coords-bar,
 .leaflet-container .leaflet-control-attribution {
     padding: 4px 12px;
@@ -125,7 +183,7 @@ html, body {
 <div id="offline-banner">Server offline &mdash; waiting for it to come back&hellip;</div>
 <div id="loading-indicator"></div>
 <div id="error-banner"></div>
-<div id="coords-bar"><span class="coord-seg"><svg viewBox="0 0 16 16"><path d="M8 1.5 14 4.5v7L8 14.5 2 11.5v-7z"/><path d="M2 4.5 8 7.5l6-3"/><path d="M8 7.5v7"/></svg><span id="block-coords"></span><button class="copy-button" data-copy="block-coords" title="Copy coordinates"><svg viewBox="0 0 16 16"><rect x="5" y="5" width="9" height="9" rx="1"/><path d="M11 5V2.5a.5.5 0 0 0-.5-.5H2.5a.5.5 0 0 0-.5.5v8a.5.5 0 0 0 .5.5H5"/></svg></button></span><span class="coord-seg"><svg viewBox="0 0 16 16"><circle cx="6.5" cy="6.5" r="4.5"/><path d="M10 10l4.5 4.5"/></svg><span id="zoom-coords"></span><button class="copy-button" data-copy="zoom-coords" title="Copy zoom level"><svg viewBox="0 0 16 16"><rect x="5" y="5" width="9" height="9" rx="1"/><path d="M11 5V2.5a.5.5 0 0 0-.5-.5H2.5a.5.5 0 0 0-.5.5v8a.5.5 0 0 0 .5.5H5"/></svg></button></span><span class="coord-seg"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.5"/><ellipse cx="8" cy="8" rx="3" ry="6.5"/><path d="M1.5 8h13"/></svg><span id="geo-coords"></span><button class="copy-button" data-copy="geo-coords" title="Copy coordinates"><svg viewBox="0 0 16 16"><rect x="5" y="5" width="9" height="9" rx="1"/><path d="M11 5V2.5a.5.5 0 0 0-.5-.5H2.5a.5.5 0 0 0-.5.5v8a.5.5 0 0 0 .5.5H5"/></svg></button></span></div>
+<div id="coords-bar"><span class="coord-seg"><svg viewBox="0 0 16 16"><path d="M8 1.5 14 4.5v7L8 14.5 2 11.5v-7z"/><path d="M2 4.5 8 7.5l6-3"/><path d="M8 7.5v7"/></svg><span id="block-coords"></span><button class="copy-button" data-copy="block-coords" title="Copy coordinates"><svg viewBox="0 0 16 16"><rect x="5" y="5" width="9" height="9" rx="1"/><path d="M11 5V2.5a.5.5 0 0 0-.5-.5H2.5a.5.5 0 0 0-.5.5v8a.5.5 0 0 0 .5.5H5"/></svg></button></span><span class="coord-seg"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.5"/><ellipse cx="8" cy="8" rx="3" ry="6.5"/><path d="M1.5 8h13"/></svg><span id="geo-coords"></span><button class="copy-button" data-copy="geo-coords" title="Copy coordinates"><svg viewBox="0 0 16 16"><rect x="5" y="5" width="9" height="9" rx="1"/><path d="M11 5V2.5a.5.5 0 0 0-.5-.5H2.5a.5.5 0 0 0-.5.5v8a.5.5 0 0 0 .5.5H5"/></svg></button></span><span class="coord-seg" id="search-seg"><svg viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5l3.5 3.5"/></svg><input id="search-input" type="text" placeholder="Search a place…" autocomplete="off"><ul id="search-results" class="hidden"></ul></span></div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 const TILE_SIZE = @TILE_SIZE@;
@@ -146,6 +204,15 @@ let pendingTiles = 0;
 let pendingGeoRequests = 0;
 const updateLoadingIndicator = () => {
     loadingIndicator.style.display = pendingTiles + pendingGeoRequests > 0 ? 'block' : 'none';
+};
+const trackGeoRequest = (request) => {
+    pendingGeoRequests++;
+    updateLoadingIndicator();
+    request.finally(() => {
+        pendingGeoRequests--;
+        updateLoadingIndicator();
+    });
+    return request;
 };
 const makeTiles = () => {
     const layer = L.gridLayer({
@@ -227,7 +294,6 @@ document.querySelectorAll('#coords-bar .copy-button').forEach((button) => {
     });
 });
 const blockCoords = document.getElementById('block-coords');
-const zoomCoords = document.getElementById('zoom-coords');
 const geoCoords = document.getElementById('geo-coords');
 const PLACEHOLDER = '--';
 const GEO_MIN_INTERVAL_MILLIS = 1000;
@@ -276,7 +342,6 @@ const showCoords = (latlng) => {
     const blockX = Math.floor(latlng.lng * BLOCKS_PER_UNIT);
     const blockZ = Math.floor(latlng.lat * BLOCKS_PER_UNIT);
     blockCoords.textContent = blockX + ', ' + blockZ;
-    zoomCoords.textContent = map.getZoom();
     if (blockX !== geoBlockX || blockZ !== geoBlockZ) {
         geoBlockX = blockX;
         geoBlockZ = blockZ;
@@ -315,6 +380,131 @@ if (initialView) {
 } else {
     map.setView([@CENTER_LAT@, @CENTER_LNG@], @MAX_ZOOM@);
 }
+const GEOCODER_NAME = '@GEOCODER_NAME@';
+const GEOCODER_URL = '@GEOCODER_URL@';
+const SEARCH_DEBOUNCE_MILLIS = 250;
+const SEARCH_URL = GEOCODER_URL + '/api/?limit=5&osm_tag=place&q=';
+const searchInput = document.getElementById('search-input');
+const searchResults = document.getElementById('search-results');
+const SEARCH_ATTRIBUTION = 'Search by <a href="' + GEOCODER_URL + '">' + GEOCODER_NAME + '</a>';
+let searchVersion = 0;
+let searchTimer = null;
+let selectedIndex = -1;
+const selectedResult = () => searchResults.children[selectedIndex] ?? null;
+const highlightResult = (index) => {
+    selectedIndex = index;
+    for (const [position, item] of [...searchResults.children].entries()) {
+        item.classList.toggle('selected', position === selectedIndex);
+    }
+    const selected = selectedResult();
+    if (selected) {
+        selected.scrollIntoView({ block: 'nearest' });
+    }
+};
+const selectResult = (item) => {
+    if (!item) {
+        return;
+    }
+    const longitude = Number(item.dataset.lon);
+    const latitude = Number(item.dataset.lat);
+    trackGeoRequest(fetch('/locate/' + longitude + '/' + latitude))
+        .then((response) => (response.ok ? response.json() : Promise.reject()))
+        .then((block) => {
+            searchResults.classList.add('hidden');
+            searchInput.value = '';
+            map.attributionControl.addAttribution(SEARCH_ATTRIBUTION);
+            map.setView([block.z / BLOCKS_PER_UNIT, block.x / BLOCKS_PER_UNIT], 0);
+        }, () => {
+            searchResults.textContent = '';
+            const message = document.createElement('li');
+            message.textContent = 'This place is outside the projection bounds';
+            searchResults.classList.remove('hidden');
+        });
+};
+const titleOfPlace = (place) =>
+    place.properties.name || place.properties.street || place.properties.city ||
+    place.properties.county || place.properties.state || place.properties.country || 'Unnamed place';
+const descriptionOfPlace = (place) =>
+    [place.properties.city, place.properties.county, place.properties.state, place.properties.country]
+        .filter((part) => part && part !== place.properties.name)
+        .filter((part, index, parts) => parts.indexOf(part) === index)
+        .join(', ');
+const kindOfPlace = (place) => place.properties.osm_value || '';
+const renderResults = (places) => {
+    searchResults.textContent = '';
+    selectedIndex = -1;
+    if (places.length === 0) {
+        searchResults.classList.add('hidden');
+        return;
+    }
+    for (const place of places) {
+        const item = document.createElement('li');
+        item.dataset.lon = place.geometry.coordinates[0];
+        item.dataset.lat = place.geometry.coordinates[1];
+        item.textContent = titleOfPlace(place);
+        const description = descriptionOfPlace(place);
+        if (description) {
+            item.textContent += ' (' + description + ')';
+        }
+        const kind = kindOfPlace(place);
+        if (kind) {
+            const kindSpan = document.createElement('span');
+            kindSpan.className = 'search-kind';
+            kindSpan.textContent = kind.replaceAll('_', ' ');
+            item.appendChild(kindSpan);
+        }
+        searchResults.appendChild(item);
+    }
+    highlightResult(0);
+    searchResults.classList.remove('hidden');
+};
+const search = () => {
+    const query = searchInput.value.trim();
+    if (query.length < 2) {
+        searchVersion++;
+        renderResults([]);
+        return;
+    }
+    const version = ++searchVersion;
+    trackGeoRequest(fetch(SEARCH_URL + encodeURIComponent(query)))
+        .then((response) => (response.ok ? response.json() : Promise.reject()))
+        .then((body) => {
+            if (version === searchVersion) {
+                renderResults(body.features || []);
+            }
+        }, () => {});
+};
+searchInput.addEventListener('input', () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(search, SEARCH_DEBOUNCE_MILLIS);
+});
+searchResults.addEventListener('mousedown', (event) => {
+    selectResult(event.target.closest('li'));
+});
+document.addEventListener('click', (event) => {
+    if (!event.target.closest('#search-seg')) {
+        searchResults.classList.add('hidden');
+    }
+});
+searchInput.addEventListener('focus', () => {
+    if (searchResults.children.length > 0) {
+        searchResults.classList.remove('hidden');
+    }
+});
+searchInput.addEventListener('keydown', (event) => {
+    const count = searchResults.children.length;
+    if (event.key === 'Escape') {
+        searchResults.classList.add('hidden');
+    } else if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        highlightResult(selectedIndex + 1 > count - 1 ? 0 : selectedIndex + 1);
+    } else if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        highlightResult(selectedIndex - 1 < 0 ? count - 1 : selectedIndex - 1);
+    } else if (event.key === 'Enter') {
+        selectResult(selectedResult() ?? searchResults.firstElementChild);
+    }
+});
 showCenter();
 </script>
 </body>

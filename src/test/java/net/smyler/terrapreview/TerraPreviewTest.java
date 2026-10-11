@@ -42,6 +42,9 @@ class TerraPreviewTest {
     private static final BufferedImage STUB_TILE = new BufferedImage(4, 2, BufferedImage.TYPE_INT_RGB);
     private static final String CONTENT_TYPE_HEADER = "Content-Type";
     private static final String DATA_PREFIX = "data:";
+
+    private static final String JSON_CONTENT_TYPE = "application/json";
+
     private static final double GEO_TEST_SCALE = 1000D;
 
     private static final String BASE_URL = "http://localhost:" + PreviewWebServer.DEFAULT_PORT;
@@ -370,7 +373,7 @@ class TerraPreviewTest {
             HttpResponse<String> response = this.get(BASE_URL + "/geo/12/-34", HttpResponse.BodyHandlers.ofString());
             assertEquals(HttpURLConnection.HTTP_OK, response.statusCode());
             assertEquals(
-                    "application/json",
+                    JSON_CONTENT_TYPE,
                     response.headers().firstValue(CONTENT_TYPE_HEADER).orElseThrow());
             assertEquals("{\"longitude\":0.012,\"latitude\":-0.034}", response.body());
         } finally {
@@ -430,7 +433,7 @@ class TerraPreviewTest {
             HttpResponse<String> error = this.get(BASE_URL + ERROR_ENDPOINT, HttpResponse.BodyHandlers.ofString());
             assertEquals("\"Could not reload the Terra-- configuration: invalid json\"", error.body());
             assertEquals(
-                    "application/json",
+                    JSON_CONTENT_TYPE,
                     error.headers().firstValue(CONTENT_TYPE_HEADER).orElseThrow());
             server.setPreview((_, _, _) -> STUB_TILE);
             HttpResponse<String> cleared = this.get(BASE_URL + ERROR_ENDPOINT, HttpResponse.BodyHandlers.ofString());
@@ -595,6 +598,92 @@ class TerraPreviewTest {
         } finally {
             server.stop();
         }
+    }
+
+    @Test
+    void locateEndpointReturnsMinecraftBlockCoordinates() throws IOException, InterruptedException {
+        Preview preview = new Preview() {
+            @Override
+            public BufferedImage renderTile(int zoom, int tileX, int tileZ) {
+                return STUB_TILE;
+            }
+
+            @Override
+            public double[] geoToBlock(double longitude, double latitude) {
+                return new double[] {longitude * GEO_TEST_SCALE, latitude * GEO_TEST_SCALE};
+            }
+        };
+        PreviewWebServer server = new PreviewWebServer(preview);
+        server.start();
+        try {
+            HttpResponse<String> response =
+                    this.get(BASE_URL + "/locate/12.5/-34.25", HttpResponse.BodyHandlers.ofString());
+            assertEquals(HttpURLConnection.HTTP_OK, response.statusCode());
+            assertEquals(
+                    JSON_CONTENT_TYPE,
+                    response.headers().firstValue(CONTENT_TYPE_HEADER).orElseThrow());
+            assertEquals("{\"x\":12500.0,\"z\":-34250.0}", response.body());
+        } finally {
+            server.stop();
+        }
+    }
+
+    @Test
+    void locateEndpointRejectsPositionsOutsideTheProjection() throws IOException, InterruptedException {
+        Preview preview = new Preview() {
+            @Override
+            public BufferedImage renderTile(int zoom, int tileX, int tileZ) {
+                return STUB_TILE;
+            }
+
+            @Override
+            public double[] geoToBlock(double longitude, double latitude) {
+                throw new IllegalArgumentException("Location is outside the projection bounds");
+            }
+        };
+        PreviewWebServer server = new PreviewWebServer(preview);
+        server.start();
+        try {
+            HttpResponse<String> response = this.get(BASE_URL + "/locate/0/0", HttpResponse.BodyHandlers.ofString());
+            assertEquals(HttpURLConnection.HTTP_NOT_FOUND, response.statusCode());
+        } finally {
+            server.stop();
+        }
+    }
+
+    @Test
+    void locateEndpointRejectsNonLocatePaths() throws IOException, InterruptedException {
+        PreviewWebServer server = new PreviewWebServer((_, _, _) -> STUB_TILE);
+        server.start();
+        try {
+            HttpResponse<String> response =
+                    this.get(BASE_URL + "/locate/not-a-position", HttpResponse.BodyHandlers.ofString());
+            assertEquals(HttpURLConnection.HTTP_NOT_FOUND, response.statusCode());
+        } finally {
+            server.stop();
+        }
+    }
+
+    @Test
+    void locateEndpointReportsPreviewsWithoutGeographicMapping() throws IOException, InterruptedException {
+        PreviewWebServer server = new PreviewWebServer((_, _, _) -> STUB_TILE);
+        server.start();
+        try {
+            HttpResponse<String> response = this.get(BASE_URL + "/locate/1/1", HttpResponse.BodyHandlers.ofString());
+            assertEquals(HttpURLConnection.HTTP_NOT_IMPLEMENTED, response.statusCode());
+        } finally {
+            server.stop();
+        }
+    }
+
+    @Test
+    void previewPageMentionsTheGeocoder() {
+        PreviewWebServer server = new PreviewWebServer((_, _, _) -> STUB_TILE);
+        String page = server.previewPage();
+        assertTrue(page.contains("GEOCODER_URL = 'https://photon.komoot.io'"));
+        assertTrue(page.contains("GEOCODER_NAME = 'Photon'"));
+        assertTrue(page.contains("SEARCH_URL + encodeURIComponent(query)"));
+        assertTrue(page.contains("'/locate/' + longitude + '/' + latitude"));
     }
 
     private <T> HttpResponse<T> get(String url, HttpResponse.BodyHandler<T> bodyHandler)

@@ -90,6 +90,11 @@ public final class EarthPreview implements Preview {
     private static final Color TREE_ZONE_COLOR = new Color(0x0D, 0x33, 0x0D, 0x99);
 
     /**
+     * The error message for geographic positions the projection cannot represent.
+     */
+    private static final String OUT_OF_PROJECTION_BOUNDS = "Location is outside the projection bounds";
+
+    /**
      * The color deep water is darkened towards, as vanilla water looks darker the deeper it is.
      */
     private static final Color DEEP_WATER_COLOR = new Color(0x1A2F6B);
@@ -277,8 +282,28 @@ public final class EarthPreview implements Preview {
         try {
             return projection.toGeo(x, z);
         } catch (OutOfProjectionBoundsException e) {
-            throw new IllegalArgumentException("Location is outside the projection bounds", e);
+            throw new IllegalArgumentException(OUT_OF_PROJECTION_BOUNDS, e);
         }
+    }
+
+    /**
+     * Returns the Minecraft block position of the given geographic coordinates.
+     *
+     * @param longitude the longitude, in degrees
+     * @param latitude the latitude, in degrees
+     * @return a two-element array of the block x and z coordinates
+     * @throws IllegalArgumentException when the location is outside the projection bounds
+     */
+    @Override
+    public double[] geoToBlock(double longitude, double latitude) {
+        GeographicProjection projection = this.settings.projection();
+        double[] worldPos;
+        try {
+            worldPos = projection.fromGeo(longitude, latitude);
+        } catch (OutOfProjectionBoundsException e) {
+            throw new IllegalArgumentException(OUT_OF_PROJECTION_BOUNDS, e);
+        }
+        return new double[] {worldPos[0], worldPos[1]};
     }
 
     private double[] geoToChunk(double longitude, double latitude) {
@@ -287,7 +312,7 @@ public final class EarthPreview implements Preview {
         try {
             worldPos = projection.fromGeo(longitude, latitude);
         } catch (OutOfProjectionBoundsException e) {
-            throw new IllegalArgumentException("Location is outside the projection bounds", e);
+            throw new IllegalArgumentException(OUT_OF_PROJECTION_BOUNDS, e);
         }
         return new double[] {Math.floor(worldPos[0] / CHUNK_SIZE), Math.floor(worldPos[1] / CHUNK_SIZE)};
     }

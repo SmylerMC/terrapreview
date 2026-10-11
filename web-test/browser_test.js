@@ -18,7 +18,7 @@ async function eventually(predicate, timeoutMillis) {
 const MAP_RENDERED = 'document.querySelector("#map .leaflet-tile-pane img") !== null';
 const COORDS_TEXT = `(() => {
     const text = (id) => document.querySelector('#coords-bar #' + id).textContent.trim();
-    return text('block-coords') + '  ' + text('zoom-coords') + '  ' + text('geo-coords');
+    return text('block-coords') + '  ' + text('geo-coords');
 })()`;
 
 describe('TerraPreview web UI', function () {
@@ -53,14 +53,13 @@ describe('TerraPreview web UI', function () {
 
     async function readCoords() {
         const text = await page.evaluate(COORDS_TEXT);
-        const match = /^(-?\d+), (-?\d+)  (-?\d+(?:\.\d+)?)  (-?\d+(?:\.\d+)?|--)°, (-?\d+(?:\.\d+)?|--)°$/.exec(text);
+        const match = /^(-?\d+), (-?\d+)  (-?\d+(?:\.\d+)?|--)°, (-?\d+(?:\.\d+)?|--)°$/.exec(text);
         assert.ok(match, `unexpected coordinates bar content: ${JSON.stringify(text)}`);
         return {
             x: Number(match[1]),
             z: Number(match[2]),
-            zoom: Number(match[3]),
-            lat: match[4] === '--' ? null : Number(match[4]),
-            lon: match[5] === '--' ? null : Number(match[5]),
+            lat: match[3] === '--' ? null : Number(match[3]),
+            lon: match[4] === '--' ? null : Number(match[4]),
         };
     }
 
@@ -171,7 +170,6 @@ describe('TerraPreview web UI', function () {
         );
         const expected = await page.evaluate(() => ({
             'block-coords': document.getElementById('block-coords').textContent,
-            'zoom-coords': document.getElementById('zoom-coords').textContent,
             'geo-coords': document.getElementById('geo-coords').textContent,
         }));
         for (const id of Object.keys(expected)) {
@@ -270,17 +268,55 @@ describe('TerraPreview web UI', function () {
         );
     });
 
+    it('shows the search input in the top bar', async function () {
+        await openMap();
+        const inTopBar = await page.evaluate(() => {
+            const input = document.getElementById('search-input');
+            return input.closest('#coords-bar') !== null;
+        });
+        assert.ok(inTopBar, 'the search input should live in the top bar');
+    });
+    it('aligns the search results with the top bar', async function () {
+        await openMap();
+        const type = (query) => {
+            for (const character of query) {
+                page.evaluate((char) => {
+                    const input = document.getElementById('search-input');
+                    input.value = input.value + char;
+                    input.dispatchEvent(new Event('input', { bubbles: true }));
+                }, character);
+            }
+        };
+        await type('par');
+        assert.ok(
+            await eventually(async () => (await page.$$eval('#search-results li', (items) => items.length)) === 1, 10_000),
+            'searching for par should find Paris',
+        );
+        const aligned = await page.evaluate(() => {
+            const bar = document.getElementById('coords-bar').getBoundingClientRect();
+            const results = document.getElementById('search-results').getBoundingClientRect();
+            return {
+                rightOffset: results.right - bar.right,
+                topOffset: results.top - bar.bottom,
+            };
+        });
+        assert.ok(Math.abs(aligned.rightOffset) <= 1, `the results should align with the bar's right edge, got ${aligned.rightOffset}`);
+        assert.ok(Math.abs(aligned.topOffset) <= 1, `the results should attach to the bar's bottom edge, got ${aligned.topOffset}`);
+    });
     it('shows an icon before each coordinate segment', async function () {
         await openMap();
         const icons = await page.evaluate(() => {
             const segments = document.querySelectorAll('#coords-bar .coord-seg');
-            return [...segments].map((segment) => {
-                const svg = segment.querySelector('svg');
-                return svg !== null && svg.getBoundingClientRect().width > 0;
-            });
+            return [...segments].map((segment) => ({
+                visible: segment.querySelector('svg') !== null
+                    && segment.querySelector('svg').getBoundingClientRect().width > 0,
+                paths: [...segment.querySelectorAll('svg > path')].map((path) => path.getAttribute('d')),
+            }));
         });
-        assert.equal(icons.length, 3, 'the top bar should have three coordinate segments');
-        assert.ok(icons.every((visible) => visible), 'each segment should display an icon');
+        assert.equal(icons.length, 3, 'the top bar should have three segments');
+        assert.ok(icons.every((icon) => icon.visible), 'each segment should display an icon');
+        const pathSets = icons.map((icon) => icon.paths.join(' '));
+        assert.equal(new Set(pathSets).size, pathSets.length, 'each segment should have a distinct icon');
     });
 
     it('shows the block coordinates of the mouse pointer', async function () {
@@ -400,20 +436,27 @@ describe('TerraPreview web UI', function () {
         );
     });
 
-    it('shows the map zoom level and updates it when zooming', async function () {
+    it('does not show the zoom level in the top bar', async function () {
         await openMap();
-        const initial = await readCoords();
-        assert.equal(initial.zoom, 3);
+        assert.equal(
+            await page.evaluate(() => document.getElementById('zoom-coords') === null),
+            true,
+            'the zoom level segment should be gone from the top bar',
+        );
+    });
+    it('zooms in and out with the keyboard', async function () {
+        await openMap();
         await page.mouse.click(400, 300);
         await page.keyboard.press('-');
         assert.ok(
-            await eventually(async () => (await readCoords()).zoom < initial.zoom, 10_000),
+            await eventually(async () => (await page.evaluate(() => map.getZoom())) < 3, 10_000),
             'zoom level should decrease when zooming out',
         );
-        const zoomedOut = await readCoords();
+        await page.evaluate(() => new Promise((resolve) => map.once('zoomend', resolve)));
+        const zoomedOut = await page.evaluate(() => map.getZoom());
         await page.keyboard.press('+');
         assert.ok(
-            await eventually(async () => (await readCoords()).zoom > zoomedOut.zoom, 10_000),
+            await eventually(async () => (await page.evaluate(() => map.getZoom())) > zoomedOut, 10_000),
             'zoom level should increase when zooming in',
         );
     });
@@ -470,6 +513,253 @@ describe('TerraPreview web UI', function () {
         );
     });
 
+
+    describe('search', function () {
+        async function type(query, { append = false } = {}) {
+            if (!append) {
+                await page.evaluate(() => {
+                    const input = document.getElementById('search-input');
+                    input.value = '';
+                });
+            }
+            for (const character of query) {
+                await page.evaluate((char) => {
+                    const input = document.getElementById('search-input');
+                    input.value = input.value + char;
+                    input.dispatchEvent(new Event('input', { bubbles: true }));
+                }, character);
+            }
+        }
+        async function results() {
+            return await page.$$eval('#search-results li', (items) =>
+                items.map((item) => ({
+                    text: item.textContent,
+                    lon: Number(item.dataset.lon),
+                    lat: Number(item.dataset.lat),
+                })),
+            );
+        }
+        it('shows matching places while typing', async function () {
+            await openMap();
+            await type('par');
+            assert.ok(
+                await eventually(async () => (await results()).length === 1, 10_000),
+                'searching for par should find Paris',
+            );
+            const paris = (await results())[0];
+            assert.equal(paris.lon, 2.3522);
+            assert.equal(paris.lat, 48.8566);
+            assert.ok(paris.text.includes('Paris'), 'result should be named Paris');
+            assert.ok(paris.text.includes('city'), 'result should mention its kind');
+            await type('xyz', { append: true });
+            assert.ok(
+                await eventually(async () => (await results()).length === 0, 10_000),
+                'no known place matches parxyz',
+            );
+        });
+        it('debounces search requests while typing', async function () {
+            await openMap();
+            await type('paris');
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+            const requests = server.searchRequests.map((request) => request.query);
+            assert.deepEqual(requests, ['paris'], 'only one request should be sent after typing stops');
+        });
+        it('teleports to the clicked result and clears the search', async function () {
+            await openMap();
+            await type('par');
+            assert.ok(
+                await eventually(async () => (await results()).length === 1, 10_000),
+                'searching for par should find Paris',
+            );
+            await page.evaluate(() => {
+                const item = document.querySelector('#search-results li');
+                item.scrollIntoView({ block: 'center' });
+                item.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+            });
+            assert.ok(
+                await eventually(async () => server.locateRequests.length > 0, 10_000),
+                'clicking a result should locate the place',
+            );
+            assert.ok(
+                await eventually(async () => {
+                    const center = await page.evaluate(() => map.getCenter());
+                    return Math.abs(center.lat - 48.8566) < 0.01 && Math.abs(center.lng - 2.3522) < 0.01;
+                }, 10_000),
+                'the map should teleport to Paris',
+            );
+            assert.equal(
+                await page.evaluate(() => map.getZoom()),
+                0,
+                'the map should teleport at zoom level 0',
+            );
+            const noMarker = await page.evaluate(() => document.querySelector('#map path.leaflet-interactive') === null);
+            assert.ok(noMarker, 'no marker should be added on the map');
+            const cleared = await page.evaluate(() => document.getElementById('search-input').value === '');
+            assert.ok(cleared, 'the search input should be cleared after selecting a result');
+            assert.equal(server.locateRequests.length, 1, 'exactly one locate request should be sent');
+            assert.ok(
+                await page.evaluate(() =>
+                    document.querySelector('.leaflet-control-attribution').textContent.includes('Photon')),
+                'the attribution should credit Photon after a search',
+            );
+        });
+        it('browses results with the arrow keys and selects with Enter', async function () {
+            await openMap();
+            await type('on');
+            assert.ok(
+                await eventually(async () => (await results()).length === 2, 10_000),
+                'searching for on should find two places',
+            );
+            const press = (key) =>
+                page.evaluate((key) => {
+                    document.getElementById('search-input').dispatchEvent(
+                        new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }),
+                    );
+                }, key);
+            assert.equal(
+                await page.evaluate(() => document.querySelector('#search-results li.selected')?.dataset.lat),
+                '51.5072',
+                'the first result should be highlighted when the results appear',
+            );
+            await press('ArrowDown');
+            assert.equal(
+                await page.evaluate(() => document.querySelector('#search-results li.selected')?.dataset.lat),
+                '45.764',
+                'ArrowDown should highlight the second result',
+            );
+            await press('ArrowDown');
+            assert.equal(
+                await page.evaluate(() => document.querySelector('#search-results li.selected')?.dataset.lat),
+                '51.5072',
+                'ArrowDown should wrap around to the first result',
+            );
+            await press('ArrowUp');
+            assert.equal(
+                await page.evaluate(() => document.querySelector('#search-results li.selected')?.dataset.lat),
+                '45.764',
+                'ArrowUp should wrap around to the last result',
+            );
+            await press('Enter');
+            assert.ok(
+                await eventually(async () => server.locateRequests.length > 0, 10_000),
+                'Enter should locate the highlighted place',
+            );
+            assert.ok(
+                await eventually(async () => {
+                    const center = await page.evaluate(() => map.getCenter());
+                    return Math.abs(center.lat - 45.764) < 0.01 && Math.abs(center.lng - 4.8357) < 0.01;
+                }, 10_000),
+                'the map should teleport to Lyon',
+            );
+            const cleared = await page.evaluate(() => document.getElementById('search-input').value === '');
+            assert.ok(cleared, 'the search input should be cleared after selecting with Enter');
+        });
+        it('selects the first result with Enter when none is highlighted', async function () {
+            await openMap();
+            await type('on');
+            assert.ok(
+                await eventually(async () => (await results()).length === 2, 10_000),
+                'searching for on should find two places',
+            );
+            const press = (key) =>
+                page.evaluate((key) => {
+                    document.getElementById('search-input').dispatchEvent(
+                        new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }),
+                    );
+                }, key);
+            await press('Enter');
+            assert.ok(
+                await eventually(async () => server.locateRequests.length > 0, 10_000),
+                'Enter should locate the first result',
+            );
+            assert.ok(
+                await eventually(async () => {
+                    const center = await page.evaluate(() => map.getCenter());
+                    return Math.abs(center.lat - 51.5072) < 0.01 && Math.abs(center.lng + 0.1276) < 0.01;
+                }, 10_000),
+                'the map should teleport to London, the first result',
+            );
+            const cleared = await page.evaluate(() => document.getElementById('search-input').value === '');
+            assert.ok(cleared, 'the search input should be cleared after selecting with Enter');
+        });
+        it('highlights the first result as the Enter target', async function () {
+            await openMap();
+            await type('on');
+            assert.ok(
+                await eventually(async () => (await results()).length === 2, 10_000),
+                'searching for on should find two places',
+            );
+            assert.equal(
+                await page.evaluate(
+                    () => document.querySelector('#search-results li.selected')?.dataset.lat,
+                ),
+                '51.5072',
+                'the first result should be highlighted when the results appear',
+            );
+            const press = (key) =>
+                page.evaluate((key) => {
+                    document.getElementById('search-input').dispatchEvent(
+                        new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }),
+                    );
+                }, key);
+            await press('Enter');
+            assert.ok(
+                await eventually(async () => server.locateRequests.length > 0, 10_000),
+                'Enter should locate the highlighted first result',
+            );
+        });
+        it('shows the loading indicator while a search request is pending', async function () {
+            await openMap();
+            assert.ok(
+                await eventually(
+                    () => page.evaluate(() => document.getElementById('loading-indicator').style.display === 'none'),
+                    30_000,
+                ),
+                'the loading indicator should start hidden once the initial state settles',
+            );
+            server.searchDelayMillis = 1500;
+            await type('par');
+            assert.ok(
+                await eventually(
+                    () => page.evaluate(() => document.getElementById('loading-indicator').style.display === 'block'),
+                    30_000,
+                ),
+                'the loading indicator should be visible while the geocoding request is in flight',
+            );
+            assert.ok(
+                await eventually(
+                    () => page.evaluate(() => document.getElementById('loading-indicator').style.display === 'none'),
+                    30_000,
+                ),
+                'the loading indicator should hide once the geocoding request completes',
+            );
+        });
+        it('shows no results while the query is too short', async function () {
+            await openMap();
+            await type('p');
+            await new Promise((resolve) => setTimeout(resolve, 500));
+            assert.equal(server.searchRequests.length, 0, 'no request should be sent for a single character');
+            assert.ok(
+                await page.evaluate(() => document.getElementById('search-results').classList.contains('hidden')),
+                'the results list should stay hidden',
+            );
+        });
+        it('hides the results when clicking elsewhere on the map', async function () {
+            await openMap();
+            await type('par');
+            assert.ok(
+                await eventually(async () => !(await page.evaluate(() =>
+                    document.getElementById('search-results').classList.contains('hidden'))), 10_000),
+                'results should be visible after a search',
+            );
+            await page.mouse.click(400, 300);
+            assert.ok(
+                await eventually(async () => page.evaluate(() =>
+                    document.getElementById('search-results').classList.contains('hidden')), 10_000),
+                'results should be hidden after clicking the map',
+            );
+        });
+    });
     it('updates the view center coordinates while panning without a pointer', async function () {
         await openMap();
         const initial = await readCoords();

@@ -43,10 +43,16 @@ public final class PreviewWebServer {
 
     private static final String CONTENT_TYPE_HEADER = "Content-Type";
 
+    private static final String JSON_CONTENT_TYPE = "application/json";
+
     private static final double HALF_CHUNK = 0.5D;
 
     private static final Pattern TILE_PATTERN = Pattern.compile("/tiles/(-?\\d+)/(-?\\d+)/(-?\\d+)\\.png");
     private static final Pattern GEO_PATTERN = Pattern.compile("/geo/(-?\\d+(?:\\.\\d+)?)/(-?\\d+(?:\\.\\d+)?)");
+    private static final Pattern LOCATE_PATTERN = Pattern.compile("/locate/(-?\\d+(?:\\.\\d+)?)/(-?\\d+(?:\\.\\d+)?)");
+    private static final String JSON_OBJECT_END = "}";
+
+    private static final String GEOCODER_NAME = "Photon";
 
     private static final int ZOOM_CAPTURE_GROUP = 1;
 
@@ -174,6 +180,7 @@ public final class PreviewWebServer {
         this.server.createContext("/events", this::serveEvents);
         this.server.createContext("/error", this::serveError);
         this.server.createContext("/geo", this::serveGeo);
+        this.server.createContext("/locate", this::serveLocate);
         this.server.createContext("/tiles", this::serveTile);
         this.server.createContext("/", this::servePreview);
         this.server.start();
@@ -208,7 +215,9 @@ public final class PreviewWebServer {
                 .replace("@MIN_ZOOM@", Integer.toString(MIN_ZOOM))
                 .replace("@MAX_ZOOM@", Integer.toString(MAX_ZOOM))
                 .replace("@CENTER_LAT@", Double.toString(centerLat))
-                .replace("@CENTER_LNG@", Double.toString(centerLng));
+                .replace("@CENTER_LNG@", Double.toString(centerLng))
+                .replace("@GEOCODER_NAME@", GEOCODER_NAME)
+                .replace("@GEOCODER_URL@", "https://photon.komoot.io");
     }
 
     private static String readResource(String name) {
@@ -240,6 +249,27 @@ public final class PreviewWebServer {
         }
     }
 
+    private void serveLocate(HttpExchange exchange) throws IOException {
+        Matcher match = LOCATE_PATTERN.matcher(exchange.getRequestURI().getPath());
+        if (!match.matches()) {
+            exchange.sendResponseHeaders(HttpURLConnection.HTTP_NOT_FOUND, -1L);
+            return;
+        }
+        double longitude = Double.parseDouble(match.group(ZOOM_CAPTURE_GROUP));
+        double latitude = Double.parseDouble(match.group(ZOOM_CAPTURE_GROUP + 1));
+        double[] block;
+        try {
+            block = this.preview.geoToBlock(longitude, latitude);
+        } catch (IllegalArgumentException ignored) {
+            exchange.sendResponseHeaders(HttpURLConnection.HTTP_NOT_FOUND, -1L);
+            return;
+        } catch (UnsupportedOperationException ignored) {
+            exchange.sendResponseHeaders(HttpURLConnection.HTTP_NOT_IMPLEMENTED, -1L);
+            return;
+        }
+        sendJson(exchange, "{\"x\":" + block[0] + ",\"z\":" + block[1] + JSON_OBJECT_END);
+    }
+
     private void serveGeo(HttpExchange exchange) throws IOException {
         Matcher match = GEO_PATTERN.matcher(exchange.getRequestURI().getPath());
         if (!match.matches()) {
@@ -255,8 +285,9 @@ public final class PreviewWebServer {
             exchange.sendResponseHeaders(HttpURLConnection.HTTP_NOT_FOUND, -1L);
             return;
         }
-        byte[] body = ("{\"longitude\":" + geo[0] + ",\"latitude\":" + geo[1] + "}").getBytes(StandardCharsets.UTF_8);
-        exchange.getResponseHeaders().set(CONTENT_TYPE_HEADER, "application/json");
+        byte[] body = ("{\"longitude\":" + geo[0] + ",\"latitude\":" + geo[1] + JSON_OBJECT_END)
+                .getBytes(StandardCharsets.UTF_8);
+        exchange.getResponseHeaders().set(CONTENT_TYPE_HEADER, JSON_CONTENT_TYPE);
         exchange.sendResponseHeaders(HttpURLConnection.HTTP_OK, body.length);
         try (OutputStream out = exchange.getResponseBody()) {
             out.write(body);
@@ -272,11 +303,20 @@ public final class PreviewWebServer {
             String escaped = message.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n");
             body = ('"' + escaped + '"').getBytes(StandardCharsets.UTF_8);
         }
-        exchange.getResponseHeaders().set(CONTENT_TYPE_HEADER, "application/json");
+        exchange.getResponseHeaders().set(CONTENT_TYPE_HEADER, JSON_CONTENT_TYPE);
         exchange.getResponseHeaders().set("Cache-Control", "no-store");
         exchange.sendResponseHeaders(HttpURLConnection.HTTP_OK, body.length);
         try (OutputStream out = exchange.getResponseBody()) {
             out.write(body);
+        }
+    }
+
+    private static void sendJson(HttpExchange exchange, String body) throws IOException {
+        byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+        exchange.getResponseHeaders().set(CONTENT_TYPE_HEADER, JSON_CONTENT_TYPE);
+        exchange.sendResponseHeaders(HttpURLConnection.HTTP_OK, bytes.length);
+        try (OutputStream out = exchange.getResponseBody()) {
+            out.write(bytes);
         }
     }
 

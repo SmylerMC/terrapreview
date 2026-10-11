@@ -7,7 +7,7 @@ const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src'
 
 const TILE_SIZE = 256;
 const CHUNK_SIZE = 16;
-const MIN_ZOOM = -2;
+const MIN_ZOOM = -5;
 const MAX_ZOOM = 3;
 const CENTER_LAT = TILE_SIZE / 2;
 const CENTER_LNG = TILE_SIZE / 2;
@@ -26,11 +26,28 @@ const PIXEL = Buffer.from([
 
 export class TestServer {
     constructor() {
+        this.searchResults = [
+            {
+                geometry: { coordinates: [2.3522, 48.8566] },
+                properties: { name: 'Paris', city: 'Paris', state: 'Île-de-France', country: 'France', osm_value: 'city' },
+            },
+            {
+                geometry: { coordinates: [-0.1276, 51.5072] },
+                properties: { name: 'London', state: 'England', country: 'United Kingdom', osm_value: 'city' },
+            },
+            {
+                geometry: { coordinates: [4.8357, 45.764] },
+                properties: { name: 'Lyon', state: 'Auvergne-Rhône-Alpes', country: 'France', osm_value: 'city' },
+            },
+        ];
         this.tileRequests = [];
         this.geoRequests = [];
         this.error = null;
         this.tileDelayMillis = 0;
         this.geoDelayMillis = 0;
+        this.searchDelayMillis = 0;
+        this.searchRequests = [];
+        this.locateRequests = [];
         this.clients = new Set();
         this.offline = false;
         this.server = http.createServer((request, response) => this.handle(request, response));
@@ -69,7 +86,9 @@ export class TestServer {
             .replaceAll('@MIN_ZOOM@', String(MIN_ZOOM))
             .replaceAll('@MAX_ZOOM@', String(MAX_ZOOM))
             .replaceAll('@CENTER_LAT@', String(CENTER_LAT))
-            .replaceAll('@CENTER_LNG@', String(CENTER_LNG));
+            .replaceAll('@CENTER_LNG@', String(CENTER_LNG))
+            .replaceAll('@GEOCODER_NAME@', 'Photon')
+            .replaceAll('@GEOCODER_URL@', this.url);
     }
 
     async handle(request, response) {
@@ -107,6 +126,33 @@ export class TestServer {
         if (url.pathname === '/error') {
             response.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
             response.end(JSON.stringify(this.error));
+            return;
+        }
+        if (url.pathname === '/api/') {
+            const query = url.searchParams.get('q') ?? '';
+            this.searchRequests.push({ at: Date.now(), query });
+            const features = this.searchResults.filter((place) =>
+                place.properties.name.toLowerCase().includes(query.toLowerCase().trim()));
+            setTimeout(() => {
+                response.writeHead(200, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ features }));
+            }, this.searchDelayMillis);
+            return;
+        }
+        if (url.pathname === '/locate' || url.pathname.startsWith('/locate/')) {
+            const match = /^\/locate\/(-?\d+(?:\.\d+)?)\/(-?\d+(?:\.\d+)?)$/.exec(url.pathname);
+            if (!match) {
+                response.writeHead(404);
+                response.end();
+                return;
+            }
+            const longitude = Number(match[1]);
+            const latitude = Number(match[2]);
+            this.locateRequests.push({ at: Date.now(), longitude, latitude });
+            const scale = this.locateScale ?? CHUNK_SIZE / TILE_SIZE;
+            const body = JSON.stringify({ x: longitude * scale, z: latitude * scale });
+            response.writeHead(200, { 'Content-Type': 'application/json' });
+            response.end(body);
             return;
         }
         if (url.pathname === '/events') {
