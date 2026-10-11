@@ -66,7 +66,7 @@ class TerraTrailingCommaScannerTest {
         List<TerraTrailingCommaScanner.TrailingComma> commas =
                 TerraTrailingCommaScanner.scan("[{\"a\": 1,}, {\"b\": 2}]");
         assertEquals(1, commas.size());
-        assertEquals(9, commas.get(0).start());
+        assertEquals(8, commas.get(0).start());
     }
 
     @Test
