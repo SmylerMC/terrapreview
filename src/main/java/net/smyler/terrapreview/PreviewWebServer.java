@@ -43,6 +43,8 @@ public final class PreviewWebServer {
 
     private static final String CONTENT_TYPE_HEADER = "Content-Type";
 
+    private static final String JSON_CONTENT_TYPE = "application/json";
+
     private static final double HALF_CHUNK = 0.5D;
 
     private static final Pattern TILE_PATTERN = Pattern.compile("/tiles/(-?\\d+)/(-?\\d+)/(-?\\d+)\\.png");
@@ -285,7 +287,7 @@ public final class PreviewWebServer {
         }
         byte[] body = ("{\"longitude\":" + geo[0] + ",\"latitude\":" + geo[1] + JSON_OBJECT_END)
                 .getBytes(StandardCharsets.UTF_8);
-        exchange.getResponseHeaders().set(CONTENT_TYPE_HEADER, "application/json");
+        exchange.getResponseHeaders().set(CONTENT_TYPE_HEADER, JSON_CONTENT_TYPE);
         exchange.sendResponseHeaders(HttpURLConnection.HTTP_OK, body.length);
         try (OutputStream out = exchange.getResponseBody()) {
             out.write(body);
@@ -301,7 +303,7 @@ public final class PreviewWebServer {
             String escaped = message.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n");
             body = ('"' + escaped + '"').getBytes(StandardCharsets.UTF_8);
         }
-        exchange.getResponseHeaders().set(CONTENT_TYPE_HEADER, "application/json");
+        exchange.getResponseHeaders().set(CONTENT_TYPE_HEADER, JSON_CONTENT_TYPE);
         exchange.getResponseHeaders().set("Cache-Control", "no-store");
         exchange.sendResponseHeaders(HttpURLConnection.HTTP_OK, body.length);
         try (OutputStream out = exchange.getResponseBody()) {
@@ -309,18 +311,9 @@ public final class PreviewWebServer {
         }
     }
 
-    private static String searchResultJson(PhotonGeocoder.Place place) {
-        return "{\"name\":" + GSON.toJson(place.name())
-                + ",\"description\":" + GSON.toJson(String.join(", ", place.description()))
-                + ",\"kind\":" + GSON.toJson(place.kind())
-                + ",\"longitude\":" + place.longitude()
-                + ",\"latitude\":" + place.latitude()
-                + JSON_OBJECT_END;
-    }
-
     private static void sendJson(HttpExchange exchange, String body) throws IOException {
         byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
-        exchange.getResponseHeaders().set(CONTENT_TYPE_HEADER, "application/json");
+        exchange.getResponseHeaders().set(CONTENT_TYPE_HEADER, JSON_CONTENT_TYPE);
         exchange.sendResponseHeaders(HttpURLConnection.HTTP_OK, bytes.length);
         try (OutputStream out = exchange.getResponseBody()) {
             out.write(bytes);

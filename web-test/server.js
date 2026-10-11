@@ -148,8 +148,6 @@ export class TestServer {
             response.end(body);
             return;
         }
-            return;
-        }
         if (url.pathname === '/events') {
             response.writeHead(200, { 'Content-Type': 'text/event-stream' });
             response.write('retry: 1000\n\n');

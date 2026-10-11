@@ -374,7 +374,7 @@ class TerraPreviewTest {
             HttpResponse<String> response = this.get(BASE_URL + "/geo/12/-34", HttpResponse.BodyHandlers.ofString());
             assertEquals(HttpURLConnection.HTTP_OK, response.statusCode());
             assertEquals(
-                    "application/json",
+                    JSON_CONTENT_TYPE,
                     response.headers().firstValue(CONTENT_TYPE_HEADER).orElseThrow());
             assertEquals("{\"longitude\":0.012,\"latitude\":-0.034}", response.body());
         } finally {
@@ -434,7 +434,7 @@ class TerraPreviewTest {
             HttpResponse<String> error = this.get(BASE_URL + ERROR_ENDPOINT, HttpResponse.BodyHandlers.ofString());
             assertEquals("\"Could not reload the Terra-- configuration: invalid json\"", error.body());
             assertEquals(
-                    "application/json",
+                    JSON_CONTENT_TYPE,
                     error.headers().firstValue(CONTENT_TYPE_HEADER).orElseThrow());
             server.setPreview((_, _, _) -> STUB_TILE);
             HttpResponse<String> cleared = this.get(BASE_URL + ERROR_ENDPOINT, HttpResponse.BodyHandlers.ofString());
