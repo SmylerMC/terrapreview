@@ -528,7 +528,15 @@ describe('TerraPreview web UI', function () {
                 await eventually(async () => (await results()).length === 1, 10_000),
                 'searching for par should find Paris',
             );
-            await page.click('#search-results li');
+            await page.evaluate(() => {
+                const item = document.querySelector('#search-results li');
+                item.scrollIntoView({ block: 'center' });
+                item.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+            });
+            assert.ok(
+                await eventually(async () => server.locateRequests.length > 0, 10_000),
+                'clicking a result should locate the place',
+            );
             const center = await page.evaluate(() => map.getCenter());
             assert.ok(
                 Math.abs(center.lat - 48.8566) < 0.01 && Math.abs(center.lng - 2.3522) < 0.01,
