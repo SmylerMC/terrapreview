@@ -554,10 +554,12 @@ describe('TerraPreview web UI', function () {
                 await eventually(async () => server.locateRequests.length > 0, 10_000),
                 'clicking a result should locate the place',
             );
-            const center = await page.evaluate(() => map.getCenter());
             assert.ok(
-                Math.abs(center.lat - 48.8566) < 0.01 && Math.abs(center.lng - 2.3522) < 0.01,
-                `the map should teleport to Paris, got ${JSON.stringify(center)}`,
+                await eventually(async () => {
+                    const center = await page.evaluate(() => map.getCenter());
+                    return Math.abs(center.lat - 48.8566) < 0.01 && Math.abs(center.lng - 2.3522) < 0.01;
+                }, 10_000),
+                'the map should teleport to Paris',
             );
             assert.equal(
                 await page.evaluate(() => map.getZoom()),
