@@ -1,6 +1,7 @@
 package net.smyler.terrapreview;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -9,6 +10,7 @@ import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
 import com.google.common.util.concurrent.UncheckedExecutionException;
 import java.awt.Color;
+import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -159,6 +161,74 @@ class EarthPreviewTest {
         UncheckedExecutionException second =
                 assertThrows(UncheckedExecutionException.class, () -> cache.getUnchecked(SERIALIZED_KEY_B));
         assertTrue(second.getCause() instanceof IllegalStateException);
+    }
+
+    private static final double NATIVE_PIXELS_PER_BLOCK = 16D;
+
+    private static final double SLIGHTLY_ABOVE_MINIMUM = 2.001D;
+
+    private static final double HALF_PIXEL = 0.5D;
+
+    private static final double ONE_PIXEL = 1D;
+
+    private static final int TARGET_SIZE = 8;
+
+    private static final int QUADRUPLE_TARGET_SIZE = 32;
+
+    private static final int CHECKERBOARD_WIDTH = 4;
+
+    private static final int CHECKERBOARD_HALF = 2;
+
+    private static final int CHECKERBOARD_WHITE_1 = 1;
+
+    private static final int CHECKERBOARD_WHITE_2 = 3;
+
+    @Test
+    void renderPixelsPerBlockKeepsLargeBlockSizes() {
+        assertEquals(NATIVE_PIXELS_PER_BLOCK, EarthPreview.renderPixelsPerBlock(NATIVE_PIXELS_PER_BLOCK));
+        assertEquals(SLIGHTLY_ABOVE_MINIMUM, EarthPreview.renderPixelsPerBlock(SLIGHTLY_ABOVE_MINIMUM));
+    }
+
+    @Test
+    void renderPixelsPerBlockRaisesTinyBlockSizesToTheMinimum() {
+        assertEquals(
+                EarthPreview.MIN_RENDER_PIXELS_PER_BLOCK,
+                EarthPreview.renderPixelsPerBlock(EarthPreview.MIN_RENDER_PIXELS_PER_BLOCK));
+        assertEquals(EarthPreview.MIN_RENDER_PIXELS_PER_BLOCK, EarthPreview.renderPixelsPerBlock(HALF_PIXEL));
+        assertEquals(EarthPreview.MIN_RENDER_PIXELS_PER_BLOCK, EarthPreview.renderPixelsPerBlock(ONE_PIXEL));
+    }
+
+    @Test
+    void downscaleReturnsImagesAlreadyAtTheTargetSize() {
+        BufferedImage image = new BufferedImage(TARGET_SIZE, TARGET_SIZE, BufferedImage.TYPE_INT_RGB);
+        assertSame(image, EarthPreview.downscale(image, TARGET_SIZE));
+    }
+
+    @Test
+    void downscaleHalvesImagesDownToTheTargetSize() {
+        BufferedImage image =
+                new BufferedImage(QUADRUPLE_TARGET_SIZE, QUADRUPLE_TARGET_SIZE, BufferedImage.TYPE_INT_RGB);
+        BufferedImage scaled = EarthPreview.downscale(image, TARGET_SIZE);
+        assertEquals(TARGET_SIZE, scaled.getWidth());
+        assertEquals(TARGET_SIZE, scaled.getHeight());
+    }
+
+    @Test
+    void downscaleAveragesNeighboringPixelsInsteadOfDroppingThem() {
+        BufferedImage image = new BufferedImage(CHECKERBOARD_WIDTH, 1, BufferedImage.TYPE_INT_RGB);
+        image.setRGB(0, 0, Color.BLACK.getRGB());
+        image.setRGB(CHECKERBOARD_WHITE_1, 0, Color.WHITE.getRGB());
+        image.setRGB(CHECKERBOARD_HALF, 0, Color.BLACK.getRGB());
+        image.setRGB(CHECKERBOARD_WHITE_2, 0, Color.WHITE.getRGB());
+        BufferedImage scaled = EarthPreview.downscale(image, CHECKERBOARD_HALF);
+        int grayLeft = scaled.getRGB(0, 0) & BYTE_MASK;
+        int grayRight = scaled.getRGB(1, 0) & BYTE_MASK;
+        assertTrue(
+                grayLeft > Color.BLACK.getRed() && grayLeft < Color.WHITE.getRed(),
+                "a black and a white pixel should blend into gray, but was " + grayLeft);
+        assertTrue(
+                grayRight > Color.BLACK.getRed() && grayRight < Color.WHITE.getRed(),
+                "a black and a white pixel should blend into gray, but was " + grayRight);
     }
 
     private static int channelDistance(Color first, Color second) {

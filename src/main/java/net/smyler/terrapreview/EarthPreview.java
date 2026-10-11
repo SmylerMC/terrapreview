@@ -5,6 +5,7 @@ import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
 import java.awt.Color;
 import java.awt.Graphics2D;
+import java.awt.RenderingHints;
 import java.awt.geom.Rectangle2D;
 import java.awt.image.BufferedImage;
 import java.util.Optional;
@@ -190,6 +191,13 @@ public final class EarthPreview implements Preview {
 
     private static final double FLAT_BRIGHTNESS = 1D;
 
+    /**
+     * The smallest block size, in pixels, at which tiles render their blocks directly. Tiles that would show
+     * blocks smaller than this, at the lowest zoom levels, render at this size instead and are then scaled down,
+     * so each block contributes an averaged sample instead of a single scattered pixel.
+     */
+    static final double MIN_RENDER_PIXELS_PER_BLOCK = 2D;
+
     private final EarthGeneratorSettings settings;
 
     private final LoadingCache<ChunkPos, CompletableFuture<CachedChunkData>> cache;
@@ -297,8 +305,13 @@ public final class EarthPreview implements Preview {
         int scale = 1 << Math.abs(zoom);
         int blocksPerTile = zoom >= 0 ? CHUNK_SIZE / scale : CHUNK_SIZE * scale;
         double pixelsPerBlock = zoom >= 0 ? (double) PIXELS_PER_BLOCK * scale : (double) PIXELS_PER_BLOCK / scale;
-        BufferedImage image = new BufferedImage(TILE_SIZE, TILE_SIZE, BufferedImage.TYPE_INT_RGB);
+        double renderPixelsPerBlock = renderPixelsPerBlock(pixelsPerBlock);
+        int renderSize = (int) Math.round(blocksPerTile * renderPixelsPerBlock);
+        BufferedImage image = new BufferedImage(renderSize, renderSize, BufferedImage.TYPE_INT_RGB);
         Graphics2D graphics = image.createGraphics();
+        if (pixelsPerBlock < MIN_RENDER_PIXELS_PER_BLOCK) {
+            graphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+        }
         int[][] heights = new int[blocksPerTile + EDGE][blocksPerTile + EDGE];
         boolean[][] water = new boolean[blocksPerTile + EDGE][blocksPerTile + EDGE];
         boolean[][] trees = new boolean[blocksPerTile + EDGE][blocksPerTile + EDGE];
@@ -327,19 +340,57 @@ public final class EarthPreview implements Preview {
                                         heights[x - 1][z - 1],
                                         blockX,
                                         blockZ),
-                                (x - MARGIN) * pixelsPerBlock,
-                                (z - MARGIN) * pixelsPerBlock,
-                                pixelsPerBlock);
+                                (x - MARGIN) * renderPixelsPerBlock,
+                                (z - MARGIN) * renderPixelsPerBlock,
+                                renderPixelsPerBlock);
                     }
                 }
             }
-            graphics.translate(-MARGIN * pixelsPerBlock, -MARGIN * pixelsPerBlock);
-            Contours.drawZones(graphics, trees, TREE_ZONE_COLOR, pixelsPerBlock);
-            Contours.draw(graphics, heights, water, pixelsPerBlock, contourVisibility(pixelsPerBlock));
+            graphics.translate(-MARGIN * renderPixelsPerBlock, -MARGIN * renderPixelsPerBlock);
+            Contours.drawZones(graphics, trees, TREE_ZONE_COLOR, renderPixelsPerBlock);
+            Contours.draw(graphics, heights, water, renderPixelsPerBlock, contourVisibility(pixelsPerBlock));
         } finally {
             graphics.dispose();
         }
-        return image;
+        return downscale(image, TILE_SIZE);
+    }
+
+    /**
+     * Returns the block size, in pixels, at which a tile renders its blocks: the requested size, or the minimum
+     * render size when blocks would be too small to draw cleanly.
+     *
+     * @param pixelsPerBlock the block size asked for by the zoom level, in pixels
+     * @return the block size to render at, in pixels, never below {@link #MIN_RENDER_PIXELS_PER_BLOCK}
+     */
+    static double renderPixelsPerBlock(double pixelsPerBlock) {
+        return Math.max(pixelsPerBlock, MIN_RENDER_PIXELS_PER_BLOCK);
+    }
+
+    /**
+     * Scales an image down to the given side length, halving it repeatedly with bilinear filtering so every step
+     * averages neighboring pixels instead of discarding them. Images already at the target size are returned as is.
+     *
+     * @param image the image to scale down
+     * @param targetSize the desired side length, in pixels
+     * @return an image of the requested size, never larger than the given one
+     */
+    static BufferedImage downscale(BufferedImage image, int targetSize) {
+        BufferedImage result = image;
+        while (result.getWidth() > targetSize || result.getHeight() > targetSize) {
+            int width = Math.max(targetSize, result.getWidth() / 2);
+            int height = Math.max(targetSize, result.getHeight() / 2);
+            BufferedImage scaled = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+            Graphics2D graphics = scaled.createGraphics();
+            try {
+                graphics.setRenderingHint(
+                        RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+                graphics.drawImage(result, 0, 0, width, height, null);
+            } finally {
+                graphics.dispose();
+            }
+            result = scaled;
+        }
+        return result;
     }
 
     /**
