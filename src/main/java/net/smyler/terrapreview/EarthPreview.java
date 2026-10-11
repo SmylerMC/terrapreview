@@ -344,6 +344,11 @@ public final class EarthPreview implements Preview {
             graphics.setColor(shadedFallback);
             graphics.fillRect(x, y, size, size);
         }
+        Color treeOverlay = TreeCover.overlayColor(TreeCover.treeChance(chunk, inChunkX, inChunkZ));
+        if (treeOverlay != null) {
+            graphics.setColor(treeOverlay);
+            graphics.fillRect(x, y, size, size);
+        }
     }
 
     private BufferedImage shadedTexture(
