@@ -19,6 +19,10 @@ dependencies {
         intellijIdeaCommunity("2025.2")
     }
     implementation(project(":"))
+    testImplementation(platform("org.junit:junit-bom:6.1.3"))
+    testImplementation("org.junit.jupiter:junit-jupiter")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+    testRuntimeOnly("junit:junit:4.13.2")
 }
 
 java {
@@ -33,6 +37,7 @@ tasks.withType<JavaCompile> {
 }
 
 tasks.test {
+    useJUnitPlatform()
     failOnNoDiscoveredTests = false
 }
 

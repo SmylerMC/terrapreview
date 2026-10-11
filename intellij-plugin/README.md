@@ -19,6 +19,11 @@ browser UI uses. External edits are picked up as well, through a filesystem watc
 If JCEF is not available, the preview half of the split editor is not created and the file opens
 as a plain text editor.
 
+The plugin also suppresses the IDE's duplicate JSON property keys warning inside Terra--
+configuration files: Terra-- legitimately relies on duplicate keys in some files (for example
+`osm.json5`), so the built-in `JsonDuplicatePropertyKeys` inspection would otherwise flag valid
+configurations.
+
 ## Build
 
 The plugin is a subproject of the root build:
