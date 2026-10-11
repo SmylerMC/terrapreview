@@ -96,6 +96,14 @@ class BlockTexturesTest {
     private static final String BRICKS_MODEL =
             "{ \"textures\": { \"top\": \"minecraft:block/bricks_top\" }, \"elements\": [ { \"faces\": { \"up\": { \"texture\": \"#top\" } } } ] }";
 
+    private static final String STONE_BLOCKSTATE =
+            "{ \"variants\": { \"\": { \"model\": \"minecraft:block/stone\" } } }";
+
+    private static final String STONE_MODEL =
+            "{ \"textures\": { \"top\": \"minecraft:block/stone\" }, \"elements\": [ { \"faces\": { \"up\": { \"texture\": \"#top\" } } } ] }";
+
+    private static final int GRAY_SAMPLE = 0x8F;
+
     @TempDir
     Path tempDir;
 
@@ -144,6 +152,25 @@ class BlockTexturesTest {
         assertEquals(GRASS_TINT_RED, rgb >> RED_SHIFT & BYTE_MASK);
         assertEquals(GRASS_TINT_GREEN, rgb >> GREEN_SHIFT & BYTE_MASK);
         assertEquals(GRASS_TINT_BLUE, rgb & BYTE_MASK);
+    }
+
+    @Test
+    void grayscaleTexturesKeepTheirRawSampleValues() throws IOException {
+        // Minecraft ships stone as a grayscale PNG; Java loads it with an ICC color space in which getRGB brightens
+        // and desaturates the samples, so every use of the image must see the same normalized colors.
+        this.jarPath = this.tempDir.resolve("gray.jar");
+        TestJarBuilder jar = new TestJarBuilder(this.jarPath);
+        jar.addJson("assets/minecraft/blockstates/stone.json", STONE_BLOCKSTATE);
+        jar.addJson("assets/minecraft/models/block/stone.json", STONE_MODEL);
+        jar.addGrayPng("assets/minecraft/textures/block/stone.png", GRAY_SAMPLE);
+        jar.build();
+        BlockTextures textures = new BlockTextures(this.jarPath);
+        BufferedImage texture = textures.topTexture("stone", 0, 0).orElseThrow();
+        int rgb = texture.getRGB(0, 0);
+        assertEquals(GRAY_SAMPLE, rgb >> RED_SHIFT & BYTE_MASK);
+        assertEquals(GRAY_SAMPLE, rgb >> GREEN_SHIFT & BYTE_MASK);
+        assertEquals(GRAY_SAMPLE, rgb & BYTE_MASK);
+        assertEquals(OPAQUE_ALPHA, rgb & OPAQUE_ALPHA);
     }
 
     @Test
@@ -311,6 +338,12 @@ class BlockTexturesTest {
         void addCornerPng(String name, int rgb) throws IOException {
             BufferedImage image = new BufferedImage(TEXTURE_SIZE, TEXTURE_SIZE, BufferedImage.TYPE_INT_ARGB);
             image.setRGB(0, 0, OPAQUE_ALPHA | rgb);
+            this.addImage(name, image);
+        }
+
+        void addGrayPng(String name, int sample) throws IOException {
+            BufferedImage image = new BufferedImage(1, 1, BufferedImage.TYPE_BYTE_GRAY);
+            image.getRaster().setSample(0, 0, 0, sample);
             this.addImage(name, image);
         }
 
