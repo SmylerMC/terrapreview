@@ -41,26 +41,11 @@ class TerraPreviewTest {
 
     private static final BufferedImage STUB_TILE = new BufferedImage(4, 2, BufferedImage.TYPE_INT_RGB);
     private static final String CONTENT_TYPE_HEADER = "Content-Type";
-<<<<<<< HEAD
-<<<<<<< HEAD
     private static final String DATA_PREFIX = "data:";
-=======
 
     private static final String JSON_CONTENT_TYPE = "application/json";
-<<<<<<< HEAD
->>>>>>> ec38fd2 (feat: add a place search bar powered by the Photon geocoding API)
+
     private static final double GEO_TEST_SCALE = 1000D;
-
-    private static final double PARIS_LONGITUDE = 2.3522D;
-
-    private static final double PARIS_LATITUDE = 48.8566D;
-
-=======
-    private static final String JSON_CONTENT_TYPE = "application/json";
->>>>>>> ee66ab5 (fix: adapt the search feature to the rebased master)
-    private static final String LOCALHOST_URL = "http://localhost:";
-=======
->>>>>>> 2adc90e (refactor: search Photon client-side and teleport to the selected place)
     private static final double GEO_TEST_SCALE = 1000D;
 
     private static final String BASE_URL = "http://localhost:" + PreviewWebServer.DEFAULT_PORT;

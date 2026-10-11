@@ -18,7 +18,7 @@ async function eventually(predicate, timeoutMillis) {
 const MAP_RENDERED = 'document.querySelector("#map .leaflet-tile-pane img") !== null';
 const COORDS_TEXT = `(() => {
     const text = (id) => document.querySelector('#coords-bar #' + id).textContent.trim();
-    return text('block-coords') + '  ' + text('zoom-coords') + '  ' + text('geo-coords');
+    return text('block-coords') + '  ' + text('geo-coords');
 })()`;
 
 describe('TerraPreview web UI', function () {
@@ -53,14 +53,13 @@ describe('TerraPreview web UI', function () {
 
     async function readCoords() {
         const text = await page.evaluate(COORDS_TEXT);
-        const match = /^(-?\d+), (-?\d+)  (-?\d+(?:\.\d+)?)  (-?\d+(?:\.\d+)?|--)°, (-?\d+(?:\.\d+)?|--)°$/.exec(text);
+        const match = /^(-?\d+), (-?\d+)  (-?\d+(?:\.\d+)?|--)°, (-?\d+(?:\.\d+)?|--)°$/.exec(text);
         assert.ok(match, `unexpected coordinates bar content: ${JSON.stringify(text)}`);
         return {
             x: Number(match[1]),
             z: Number(match[2]),
-            zoom: Number(match[3]),
-            lat: match[4] === '--' ? null : Number(match[4]),
-            lon: match[5] === '--' ? null : Number(match[5]),
+            lat: match[3] === '--' ? null : Number(match[3]),
+            lon: match[4] === '--' ? null : Number(match[4]),
         };
     }
 
@@ -171,7 +170,6 @@ describe('TerraPreview web UI', function () {
         );
         const expected = await page.evaluate(() => ({
             'block-coords': document.getElementById('block-coords').textContent,
-            'zoom-coords': document.getElementById('zoom-coords').textContent,
             'geo-coords': document.getElementById('geo-coords').textContent,
         }));
         for (const id of Object.keys(expected)) {
@@ -288,7 +286,7 @@ describe('TerraPreview web UI', function () {
                 paths: [...segment.querySelectorAll('svg > path')].map((path) => path.getAttribute('d')),
             }));
         });
-        assert.equal(icons.length, 4, 'the top bar should have four segments');
+        assert.equal(icons.length, 3, 'the top bar should have three segments');
         assert.ok(icons.every((icon) => icon.visible), 'each segment should display an icon');
         const pathSets = icons.map((icon) => icon.paths.join(' '));
         assert.equal(new Set(pathSets).size, pathSets.length, 'each segment should have a distinct icon');
@@ -382,6 +380,7 @@ describe('TerraPreview web UI', function () {
         assert.equal(textAfter, text);
     });
 
+<<<<<<< HEAD
     it('shows an offline banner while the server is unreachable', async function () {
         await openMap();
         assert.equal(
@@ -411,20 +410,27 @@ describe('TerraPreview web UI', function () {
         );
     });
 
-    it('shows the map zoom level and updates it when zooming', async function () {
+    it('does not show the zoom level in the top bar', async function () {
         await openMap();
-        const initial = await readCoords();
-        assert.equal(initial.zoom, 3);
+        assert.equal(
+            await page.evaluate(() => document.getElementById('zoom-coords') === null),
+            true,
+            'the zoom level segment should be gone from the top bar',
+        );
+    });
+    it('zooms in and out with the keyboard', async function () {
+        await openMap();
         await page.mouse.click(400, 300);
         await page.keyboard.press('-');
         assert.ok(
-            await eventually(async () => (await readCoords()).zoom < initial.zoom, 10_000),
+            await eventually(async () => (await page.evaluate(() => map.getZoom())) < 3, 10_000),
             'zoom level should decrease when zooming out',
         );
-        const zoomedOut = await readCoords();
+        await page.evaluate(() => new Promise((resolve) => map.once('zoomend', resolve)));
+        const zoomedOut = await page.evaluate(() => map.getZoom());
         await page.keyboard.press('+');
         assert.ok(
-            await eventually(async () => (await readCoords()).zoom > zoomedOut.zoom, 10_000),
+            await eventually(async () => (await page.evaluate(() => map.getZoom())) > zoomedOut, 10_000),
             'zoom level should increase when zooming in',
         );
     });
