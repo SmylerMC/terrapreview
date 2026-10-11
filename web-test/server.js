@@ -35,6 +35,10 @@ export class TestServer {
                 geometry: { coordinates: [-0.1276, 51.5072] },
                 properties: { name: 'London', state: 'England', country: 'United Kingdom', osm_value: 'city' },
             },
+            {
+                geometry: { coordinates: [4.8357, 45.764] },
+                properties: { name: 'Lyon', state: 'Auvergne-Rhône-Alpes', country: 'France', osm_value: 'city' },
+            },
         ];
         this.tileRequests = [];
         this.geoRequests = [];

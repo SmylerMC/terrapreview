@@ -575,6 +575,56 @@ describe('TerraPreview web UI', function () {
                 'the attribution should credit Photon after a search',
             );
         });
+        it('browses results with the arrow keys and selects with Enter', async function () {
+            await openMap();
+            await type('on');
+            assert.ok(
+                await eventually(async () => (await results()).length === 2, 10_000),
+                'searching for on should find two places',
+            );
+            const press = (key) =>
+                page.evaluate((key) => {
+                    document.getElementById('search-input').dispatchEvent(
+                        new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }),
+                    );
+                }, key);
+            await press('ArrowDown');
+            assert.equal(
+                await page.evaluate(() => document.querySelector('#search-results li.selected')?.dataset.lat),
+                '51.5072',
+                'ArrowDown should highlight the first result',
+            );
+            await press('ArrowDown');
+            assert.equal(
+                await page.evaluate(() => document.querySelector('#search-results li.selected')?.dataset.lat),
+                '45.764',
+                'ArrowDown should highlight the second result',
+            );
+            await press('ArrowDown');
+            assert.equal(
+                await page.evaluate(() => document.querySelector('#search-results li.selected')?.dataset.lat),
+                '51.5072',
+                'ArrowDown should wrap around to the first result',
+            );
+            await press('ArrowUp');
+            assert.equal(
+                await page.evaluate(() => document.querySelector('#search-results li.selected')?.dataset.lat),
+                '45.764',
+                'ArrowUp should wrap around to the last result',
+            );
+            await press('Enter');
+            assert.ok(
+                await eventually(async () => server.locateRequests.length > 0, 10_000),
+                'Enter should locate the highlighted place',
+            );
+            const center = await page.evaluate(() => map.getCenter());
+            assert.ok(
+                Math.abs(center.lat - 45.764) < 0.01 && Math.abs(center.lng - 4.8357) < 0.01,
+                `the map should teleport to Lyon, got ${JSON.stringify(center)}`,
+            );
+            const cleared = await page.evaluate(() => document.getElementById('search-input').value === '');
+            assert.ok(cleared, 'the search input should be cleared after selecting with Enter');
+        });
         it('shows no results while the query is too short', async function () {
             await openMap();
             await type('p');

@@ -150,7 +150,8 @@ html, body {
     overflow: hidden;
     text-overflow: ellipsis;
 }
-#search-results li:hover {
+#search-results li:hover,
+#search-results li.selected {
     background: rgba(255, 255, 255, 0.15);
 }
 #search-results li .search-kind {
@@ -379,6 +380,38 @@ const searchResults = document.getElementById('search-results');
 const SEARCH_ATTRIBUTION = 'Search by <a href="' + GEOCODER_URL + '">' + GEOCODER_NAME + '</a>';
 let searchVersion = 0;
 let searchTimer = null;
+let selectedIndex = -1;
+const selectedResult = () => searchResults.children[selectedIndex] ?? null;
+const highlightResult = (index) => {
+    selectedIndex = index;
+    for (const [position, item] of [...searchResults.children].entries()) {
+        item.classList.toggle('selected', position === selectedIndex);
+    }
+    const selected = selectedResult();
+    if (selected) {
+        selected.scrollIntoView({ block: 'nearest' });
+    }
+};
+const selectResult = (item) => {
+    if (!item) {
+        return;
+    }
+    const longitude = Number(item.dataset.lon);
+    const latitude = Number(item.dataset.lat);
+    fetch('/locate/' + longitude + '/' + latitude)
+        .then((response) => (response.ok ? response.json() : Promise.reject()))
+        .then((block) => {
+            searchResults.classList.add('hidden');
+            searchInput.value = '';
+            map.attributionControl.addAttribution(SEARCH_ATTRIBUTION);
+            map.setView([block.z / BLOCKS_PER_UNIT, block.x / BLOCKS_PER_UNIT], 0);
+        }, () => {
+            searchResults.textContent = '';
+            const message = document.createElement('li');
+            message.textContent = 'This place is outside the projection bounds';
+            searchResults.classList.remove('hidden');
+        });
+};
 const titleOfPlace = (place) =>
     place.properties.name || place.properties.street || place.properties.city ||
     place.properties.county || place.properties.state || place.properties.country || 'Unnamed place';
@@ -390,6 +423,7 @@ const descriptionOfPlace = (place) =>
 const kindOfPlace = (place) => place.properties.osm_value || '';
 const renderResults = (places) => {
     searchResults.textContent = '';
+    selectedIndex = -1;
     if (places.length === 0) {
         searchResults.classList.add('hidden');
         return;
@@ -435,25 +469,7 @@ searchInput.addEventListener('input', () => {
     searchTimer = setTimeout(search, SEARCH_DEBOUNCE_MILLIS);
 });
 searchResults.addEventListener('mousedown', (event) => {
-    const item = event.target.closest('li');
-    if (!item) {
-        return;
-    }
-    const longitude = Number(item.dataset.lon);
-    const latitude = Number(item.dataset.lat);
-    fetch('/locate/' + longitude + '/' + latitude)
-        .then((response) => (response.ok ? response.json() : Promise.reject()))
-        .then((block) => {
-            searchResults.classList.add('hidden');
-            searchInput.value = '';
-            map.attributionControl.addAttribution(SEARCH_ATTRIBUTION);
-            map.setView([block.z / BLOCKS_PER_UNIT, block.x / BLOCKS_PER_UNIT], 0);
-        }, () => {
-            searchResults.textContent = '';
-            const message = document.createElement('li');
-            message.textContent = 'This place is outside the projection bounds';
-            searchResults.classList.remove('hidden');
-        });
+    selectResult(event.target.closest('li'));
 });
 document.addEventListener('click', (event) => {
     if (!event.target.closest('#search-seg')) {
@@ -466,8 +482,17 @@ searchInput.addEventListener('focus', () => {
     }
 });
 searchInput.addEventListener('keydown', (event) => {
+    const count = searchResults.children.length;
     if (event.key === 'Escape') {
         searchResults.classList.add('hidden');
+    } else if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        highlightResult(selectedIndex + 1 > count - 1 ? 0 : selectedIndex + 1);
+    } else if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        highlightResult(selectedIndex - 1 < 0 ? count - 1 : selectedIndex - 1);
+    } else if (event.key === 'Enter') {
+        selectResult(selectedResult());
     }
 });
 showCenter();
