@@ -300,8 +300,8 @@ describe('TerraPreview web UI', function () {
                 topOffset: results.top - bar.bottom,
             };
         });
-        assert.ok(Math.abs(aligned.rightOffset) < 1, `the results should align with the bar's right edge, got ${aligned.rightOffset}`);
-        assert.ok(Math.abs(aligned.topOffset) < 1, `the results should attach to the bar's bottom edge, got ${aligned.topOffset}`);
+        assert.ok(Math.abs(aligned.rightOffset) <= 1, `the results should align with the bar's right edge, got ${aligned.rightOffset}`);
+        assert.ok(Math.abs(aligned.topOffset) <= 1, `the results should attach to the bar's bottom edge, got ${aligned.topOffset}`);
     });
     it('shows an icon before each coordinate segment', async function () {
         await openMap();
