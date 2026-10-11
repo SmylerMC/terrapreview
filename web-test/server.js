@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'main', 'resources', 'web');
 
 const TILE_SIZE = 256;
+const CHUNK_SIZE = 16;
 const MIN_ZOOM = -2;
 const MAX_ZOOM = 3;
 const CENTER_LAT = TILE_SIZE / 2;
@@ -26,6 +27,7 @@ const PIXEL = Buffer.from([
 export class TestServer {
     constructor() {
         this.tileRequests = [];
+        this.geoRequests = [];
         this.clients = new Set();
         this.server = http.createServer((request, response) => this.handle(request, response));
     }
@@ -59,6 +61,7 @@ export class TestServer {
         const template = await readFile(path.join(root, 'index.html'), 'utf8');
         return template
             .replaceAll('@TILE_SIZE@', String(TILE_SIZE))
+            .replaceAll('@CHUNK_SIZE@', String(CHUNK_SIZE))
             .replaceAll('@MIN_ZOOM@', String(MIN_ZOOM))
             .replaceAll('@MAX_ZOOM@', String(MAX_ZOOM))
             .replaceAll('@CENTER_LAT@', String(CENTER_LAT))
@@ -71,6 +74,21 @@ export class TestServer {
             this.tileRequests.push({ path: url.pathname, version: url.searchParams.get('v') });
             response.writeHead(200, { 'Content-Type': 'image/png', 'Cache-Control': 'no-store' });
             response.end(PIXEL);
+            return;
+        }
+        if (url.pathname === '/geo' || url.pathname.startsWith('/geo/')) {
+            const match = /^\/geo\/(-?\d+(?:\.\d+)?)\/(-?\d+(?:\.\d+)?)$/.exec(url.pathname);
+            if (!match) {
+                response.writeHead(404);
+                response.end();
+                return;
+            }
+            const x = Number(match[1]);
+            const z = Number(match[2]);
+            this.geoRequests.push({ at: Date.now(), path: url.pathname });
+            const body = JSON.stringify({ longitude: x / 1000, latitude: z / 1000 });
+            response.writeHead(200, { 'Content-Type': 'application/json' });
+            response.end(body);
             return;
         }
         if (url.pathname === '/events') {
