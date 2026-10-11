@@ -5,10 +5,13 @@
     <description>A live-reloading preview of Terra-- generated worlds, embedded in the IDE.</description>
 
     <depends>com.intellij.modules.platform</depends>
+    <depends>com.intellij.modules.json</depends>
 
     <extensions defaultExtensionNs="com.intellij">
         <projectService serviceImplementation="net.smyler.terrapreview.ide.plugin.TerrapreviewService"/>
         <fileEditorProvider
                 implementation="net.smyler.terrapreview.ide.plugin.TerrapreviewSplitEditorProvider"/>
+        <lang.inspectionSuppressor language="JSON"
+                implementationClass="net.smyler.terrapreview.ide.plugin.TerraDuplicatePropertyKeysSuppressor"/>
     </extensions>
 </idea-plugin>
