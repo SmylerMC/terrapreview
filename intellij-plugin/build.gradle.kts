@@ -32,6 +32,10 @@ tasks.withType<JavaCompile> {
     options.encoding = "UTF-8"
 }
 
+tasks.test {
+    failOnNoDiscoveredTests = false
+}
+
 intellijPlatform {
     pluginConfiguration {
         ideaVersion {
