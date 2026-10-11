@@ -29,10 +29,14 @@ public final class TerraTrailingCommaInspection extends LocalInspectionTool {
             return PsiElementVisitor.EMPTY_VISITOR;
         }
         CharSequence contents = file.getViewProvider().getContents();
-        if (contents == null || !contents.textContains(',')) {
+        if (contents == null) {
             return PsiElementVisitor.EMPTY_VISITOR;
         }
-        for (TerraTrailingCommaScanner.TrailingComma comma : TerraTrailingCommaScanner.scan(contents.toString())) {
+        String text = contents.toString();
+        if (!text.contains(",")) {
+            return PsiElementVisitor.EMPTY_VISITOR;
+        }
+        for (TerraTrailingCommaScanner.TrailingComma comma : TerraTrailingCommaScanner.scan(text)) {
             holder.registerProblem(
                     file, TextRange.create(comma.start(), comma.end()), PROBLEM_DESCRIPTION, new RemoveTrailingCommaFix());
         }
