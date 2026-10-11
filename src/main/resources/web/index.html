@@ -196,8 +196,21 @@ map.on('move zoom moveend zoomend', () => {
     } else {
         showCoords(pointerLatLng);
     }
+    updateUrl();
 });
-map.setView([@CENTER_LAT@, @CENTER_LNG@], @MAX_ZOOM@);
+const updateUrl = () => {
+    const center = map.getCenter();
+    const x = center.lng * BLOCKS_PER_UNIT;
+    const z = center.lat * BLOCKS_PER_UNIT;
+    const hash = '#' + x.toFixed(3) + ',' + z.toFixed(3) + ',' + map.getZoom();
+    history.replaceState(null, '', hash);
+};
+const initialView = /^#(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)$/.exec(location.hash);
+if (initialView) {
+    map.setView([Number(initialView[2]) / BLOCKS_PER_UNIT, Number(initialView[1]) / BLOCKS_PER_UNIT], Number(initialView[3]));
+} else {
+    map.setView([@CENTER_LAT@, @CENTER_LNG@], @MAX_ZOOM@);
+}
 showCenter();
 </script>
 </body>
