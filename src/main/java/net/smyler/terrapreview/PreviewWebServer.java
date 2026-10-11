@@ -40,6 +40,7 @@ public final class PreviewWebServer {
     private static final double HALF_CHUNK = 0.5D;
 
     private static final Pattern TILE_PATTERN = Pattern.compile("/tiles/(-?\\d+)/(-?\\d+)/(-?\\d+)\\.png");
+    private static final Pattern GEO_PATTERN = Pattern.compile("/geo/(-?\\d+(?:\\.\\d+)?)/(-?\\d+(?:\\.\\d+)?)");
 
     private static final int ZOOM_CAPTURE_GROUP = 1;
 
@@ -131,6 +132,7 @@ public final class PreviewWebServer {
         this.server.setExecutor(Executors.newCachedThreadPool(
                 Thread.ofPlatform().daemon().name("terrapreview-server-").factory()));
         this.server.createContext("/events", this::serveEvents);
+        this.server.createContext("/geo", this::serveGeo);
         this.server.createContext("/tiles", this::serveTile);
         this.server.createContext("/", this::servePreview);
         this.server.start();
@@ -161,6 +163,7 @@ public final class PreviewWebServer {
         double centerLng = (this.centerChunk[0] + HALF_CHUNK) * EarthPreview.TILE_SIZE;
         return PAGE_TEMPLATE
                 .replace("@TILE_SIZE@", Integer.toString(EarthPreview.TILE_SIZE))
+                .replace("@CHUNK_SIZE@", Integer.toString(EarthPreview.CHUNK_SIZE))
                 .replace("@MIN_ZOOM@", Integer.toString(MIN_ZOOM))
                 .replace("@MAX_ZOOM@", Integer.toString(MAX_ZOOM))
                 .replace("@CENTER_LAT@", Double.toString(centerLat))
@@ -193,6 +196,29 @@ public final class PreviewWebServer {
         exchange.sendResponseHeaders(HttpURLConnection.HTTP_OK, 0);
         try (OutputStream out = exchange.getResponseBody()) {
             ImageIO.write(tile, "png", out);
+        }
+    }
+
+    private void serveGeo(HttpExchange exchange) throws IOException {
+        Matcher match = GEO_PATTERN.matcher(exchange.getRequestURI().getPath());
+        if (!match.matches()) {
+            exchange.sendResponseHeaders(HttpURLConnection.HTTP_NOT_FOUND, -1L);
+            return;
+        }
+        double x = Double.parseDouble(match.group(ZOOM_CAPTURE_GROUP));
+        double z = Double.parseDouble(match.group(ZOOM_CAPTURE_GROUP + 1));
+        double[] geo;
+        try {
+            geo = this.preview.blockToGeo(x, z);
+        } catch (IllegalArgumentException _) {
+            exchange.sendResponseHeaders(HttpURLConnection.HTTP_NOT_FOUND, -1L);
+            return;
+        }
+        byte[] body = ("{\"longitude\":" + geo[0] + ",\"latitude\":" + geo[1] + "}").getBytes(StandardCharsets.UTF_8);
+        exchange.getResponseHeaders().set(CONTENT_TYPE_HEADER, "application/json");
+        exchange.sendResponseHeaders(HttpURLConnection.HTTP_OK, body.length);
+        try (OutputStream out = exchange.getResponseBody()) {
+            out.write(body);
         }
     }
 

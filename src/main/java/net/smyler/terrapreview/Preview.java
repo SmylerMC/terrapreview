@@ -20,4 +20,16 @@ public interface Preview {
      * @return the image tile
      */
     BufferedImage renderTile(int zoom, int tileX, int tileZ);
+
+    /**
+     * Returns the geographic coordinates of the given Minecraft block position.
+     *
+     * @param x the block x coordinate
+     * @param z the block z coordinate
+     * @return a two-element array of the longitude and latitude, in degrees
+     * @throws UnsupportedOperationException when the preview has no geographic mapping
+     */
+    default double[] blockToGeo(double x, double z) {
+        throw new UnsupportedOperationException("This preview has no geographic mapping");
+    }
 }

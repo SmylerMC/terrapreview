@@ -37,6 +37,8 @@ class TerraPreviewTest {
             Duration.ofSeconds(TIMEOUT_SECONDS).toNanos();
 
     private static final BufferedImage STUB_TILE = new BufferedImage(4, 2, BufferedImage.TYPE_INT_RGB);
+    private static final String CONTENT_TYPE_HEADER = "Content-Type";
+    private static final double GEO_TEST_SCALE = 1000D;
 
     private static final String BASE_URL = "http://localhost:" + PreviewWebServer.DEFAULT_PORT;
 
@@ -303,7 +305,7 @@ class TerraPreviewTest {
             assertEquals(HttpURLConnection.HTTP_OK, response.statusCode());
             assertEquals(
                     "text/html; charset=utf-8",
-                    response.headers().firstValue("Content-Type").orElseThrow());
+                    response.headers().firstValue(CONTENT_TYPE_HEADER).orElseThrow());
             assertEquals(server.previewPage(), response.body());
             assertTrue(response.body().contains("L.map('map'"));
             assertTrue(response.body().contains("unpkg.com/leaflet@1.9.4"));
@@ -321,7 +323,8 @@ class TerraPreviewTest {
                     this.get(BASE_URL + "/tiles/0/3/-7.png", HttpResponse.BodyHandlers.ofByteArray());
             assertEquals(HttpURLConnection.HTTP_OK, response.statusCode());
             assertEquals(
-                    "image/png", response.headers().firstValue("Content-Type").orElseThrow());
+                    "image/png",
+                    response.headers().firstValue(CONTENT_TYPE_HEADER).orElseThrow());
             BufferedImage image = ImageIO.read(new ByteArrayInputStream(response.body()));
             assertEquals(STUB_TILE.getWidth(), image.getWidth());
             assertEquals(STUB_TILE.getHeight(), image.getHeight());
@@ -338,6 +341,69 @@ class TerraPreviewTest {
         try {
             HttpResponse<String> response =
                     this.get(BASE_URL + "/tiles/0/not-a-tile.png", HttpResponse.BodyHandlers.ofString());
+            assertEquals(HttpURLConnection.HTTP_NOT_FOUND, response.statusCode());
+        } finally {
+            server.stop();
+        }
+    }
+
+    @Test
+    void geoEndpointReturnsGeographicCoordinates() throws IOException, InterruptedException {
+        Preview preview = new Preview() {
+            @Override
+            public BufferedImage renderTile(int zoom, int tileX, int tileZ) {
+                return STUB_TILE;
+            }
+
+            @Override
+            public double[] blockToGeo(double x, double z) {
+                return new double[] {x / GEO_TEST_SCALE, z / GEO_TEST_SCALE};
+            }
+        };
+        PreviewWebServer server = new PreviewWebServer(preview);
+        server.start();
+        try {
+            HttpResponse<String> response = this.get(BASE_URL + "/geo/12/-34", HttpResponse.BodyHandlers.ofString());
+            assertEquals(HttpURLConnection.HTTP_OK, response.statusCode());
+            assertEquals(
+                    "application/json",
+                    response.headers().firstValue(CONTENT_TYPE_HEADER).orElseThrow());
+            assertEquals("{\"longitude\":0.012,\"latitude\":-0.034}", response.body());
+        } finally {
+            server.stop();
+        }
+    }
+
+    @Test
+    void geoEndpointRejectsPositionsOutsideTheProjection() throws IOException, InterruptedException {
+        Preview preview = new Preview() {
+            @Override
+            public BufferedImage renderTile(int zoom, int tileX, int tileZ) {
+                return STUB_TILE;
+            }
+
+            @Override
+            public double[] blockToGeo(double x, double z) {
+                throw new IllegalArgumentException("Location is outside the projection bounds");
+            }
+        };
+        PreviewWebServer server = new PreviewWebServer(preview);
+        server.start();
+        try {
+            HttpResponse<String> response = this.get(BASE_URL + "/geo/0/0", HttpResponse.BodyHandlers.ofString());
+            assertEquals(HttpURLConnection.HTTP_NOT_FOUND, response.statusCode());
+        } finally {
+            server.stop();
+        }
+    }
+
+    @Test
+    void geoEndpointRejectsNonGeoPaths() throws IOException, InterruptedException {
+        PreviewWebServer server = new PreviewWebServer((_, _, _) -> STUB_TILE);
+        server.start();
+        try {
+            HttpResponse<String> response =
+                    this.get(BASE_URL + "/geo/not-a-position", HttpResponse.BodyHandlers.ofString());
             assertEquals(HttpURLConnection.HTTP_NOT_FOUND, response.statusCode());
         } finally {
             server.stop();

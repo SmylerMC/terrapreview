@@ -7,15 +7,19 @@ const POLL_INTERVAL_MILLIS = 50;
 async function eventually(predicate, timeoutMillis) {
     const deadline = Date.now() + timeoutMillis;
     while (Date.now() < deadline) {
-        if (predicate()) {
+        if (await predicate()) {
             return true;
         }
         await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MILLIS));
     }
-    return predicate();
+    return await predicate();
 }
 
 const MAP_RENDERED = 'document.querySelector("#map .leaflet-tile-pane img") !== null';
+const COORDS_TEXT = `(() => {
+    const text = (id) => document.querySelector('#coords-bar #' + id).textContent.trim();
+    return text('block-coords') + '  ' + text('zoom-coords') + '  ' + text('geo-coords');
+})()`;
 
 describe('TerraPreview web UI', function () {
     this.timeout(60_000);
@@ -47,6 +51,19 @@ describe('TerraPreview web UI', function () {
         await page.waitForFunction(MAP_RENDERED, { timeout: 60_000 });
     }
 
+    async function readCoords() {
+        const text = await page.evaluate(COORDS_TEXT);
+        const match = /^(-?\d+), (-?\d+)  (-?\d+(?:\.\d+)?)  (-?\d+(?:\.\d+)?|--)°, (-?\d+(?:\.\d+)?|--)°$/.exec(text);
+        assert.ok(match, `unexpected coordinates bar content: ${JSON.stringify(text)}`);
+        return {
+            x: Number(match[1]),
+            z: Number(match[2]),
+            zoom: Number(match[3]),
+            lat: match[4] === '--' ? null : Number(match[4]),
+            lon: match[5] === '--' ? null : Number(match[5]),
+        };
+    }
+
     async function retry(action, attempts) {
         for (let i = 1; ; i++) {
             try {
@@ -70,6 +87,36 @@ describe('TerraPreview web UI', function () {
             server.tileRequests.every((request) => /^\/tiles\/-?\d+\/-?\d+\/-?\d+\.png$/.test(request.path)),
             'tiles should be requested from the chunk tile endpoint',
         );
+    });
+
+    it('shows the OpenStreetMap attribution in the bottom right corner', async function () {
+        await openMap();
+        const control = await page.evaluate(() => {
+            const element = document.querySelector('.leaflet-control-attribution');
+            if (!element) {
+                return null;
+            }
+            const rect = element.getBoundingClientRect();
+            return {
+                text: element.textContent.trim(),
+                visible: rect.width > 0 && rect.height > 0,
+                bottom: window.innerHeight - rect.bottom,
+                right: window.innerWidth - rect.right,
+                style: {
+                    backgroundColor: getComputedStyle(element).backgroundColor,
+                    color: getComputedStyle(element).color,
+                    fontFamily: getComputedStyle(element).fontFamily,
+                },
+            };
+        });
+        assert.ok(control, 'attribution control should be present');
+        assert.ok(control.visible, 'attribution control should be visible');
+        assert.ok(control.text.includes('OpenStreetMap'), 'attribution should mention OpenStreetMap');
+        assert.ok(control.bottom < 10, `attribution should touch the bottom edge, got ${control.bottom}`);
+        assert.ok(control.right < 10, `attribution should touch the right edge, got ${control.right}`);
+        assert.equal(control.style.backgroundColor, 'rgba(38, 38, 38, 0.8)');
+        assert.equal(control.style.color, 'rgb(238, 238, 238)');
+        assert.equal(control.style.fontFamily, 'monospace');
     });
 
     it('loads no script errors', async function () {
@@ -104,6 +151,173 @@ describe('TerraPreview web UI', function () {
         assert.ok(
             await eventually(() => server.tileRequests.some((request) => request.version === '2'), 10_000),
             'no tiles were requested with the second version',
+        );
+    });
+    it('copies each coordinate group to the clipboard', async function () {
+        await page.evaluateOnNewDocument(() => {
+            window.clipboardWrites = [];
+            navigator.clipboard.writeText = (text) => {
+                window.clipboardWrites.push(text);
+                return Promise.resolve();
+            };
+        });
+        await openMap();
+        assert.ok(
+            await eventually(async () => {
+                const coords = await readCoords();
+                return coords.lat !== null && coords.lon !== null;
+            }, 10_000),
+            'geographic coordinates should settle',
+        );
+        const expected = await page.evaluate(() => ({
+            'block-coords': document.getElementById('block-coords').textContent,
+            'zoom-coords': document.getElementById('zoom-coords').textContent,
+            'geo-coords': document.getElementById('geo-coords').textContent,
+        }));
+        for (const id of Object.keys(expected)) {
+            const writesBefore = await page.evaluate(() => window.clipboardWrites.length);
+            await page.click(`#coords-bar .copy-button[data-copy="${id}"]`);
+            assert.ok(
+                await eventually(async () => {
+                    const writes = await page.evaluate(() => window.clipboardWrites);
+                    return writes.length > writesBefore && writes.at(-1) === expected[id];
+                }, 10_000),
+                `clicking the ${id} copy button should write its value to the clipboard`,
+            );
+        }
+    });
+
+    it('shows an icon before each coordinate segment', async function () {
+        await openMap();
+        const icons = await page.evaluate(() => {
+            const segments = document.querySelectorAll('#coords-bar .coord-seg');
+            return [...segments].map((segment) => {
+                const svg = segment.querySelector('svg');
+                return svg !== null && svg.getBoundingClientRect().width > 0;
+            });
+        });
+        assert.equal(icons.length, 3, 'the top bar should have three coordinate segments');
+        assert.ok(icons.every((visible) => visible), 'each segment should display an icon');
+    });
+
+    it('shows the block coordinates of the mouse pointer', async function () {
+        await openMap();
+        const center = await readCoords();
+        await page.mouse.move(300, 300);
+        const atPointer = await readCoords();
+        assert.ok(
+            atPointer.x !== center.x || atPointer.z !== center.z,
+            'coordinates should follow the mouse pointer',
+        );
+        const mapBounds = await page.evaluate(() => {
+            const rect = document.getElementById('map').getBoundingClientRect();
+            return { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
+        });
+        await page.mouse.move(mapBounds.left + mapBounds.width / 2, mapBounds.top + mapBounds.height / 2);
+        assert.ok(
+            await eventually(async () => {
+                const coords = await readCoords();
+                return coords.x === center.x && coords.z === center.z;
+            }, 10_000),
+            'coordinates should return to the view center',
+        );
+    });
+    it('shows the view center coordinates when the pointer leaves the map', async function () {
+        await openMap();
+        const center = await readCoords();
+        await page.mouse.move(10, 10);
+        assert.ok(
+            await eventually(async () => {
+                const coords = await readCoords();
+                return coords.x !== center.x || coords.z !== center.z;
+            }, 10_000),
+            'coordinates should follow the mouse pointer',
+        );
+        await page.mouse.move(-10, -10);
+        assert.ok(
+            await eventually(async () => {
+                const coords = await readCoords();
+                return coords.x === center.x && coords.z === center.z;
+            }, 10_000),
+            'coordinates should fall back to the view center',
+        );
+    });
+    it('shows the latitude and longitude of the mouse pointer', async function () {
+        await openMap();
+        assert.ok(
+            await eventually(async () => {
+                const coords = await readCoords();
+                return coords.lat !== null && coords.lon !== null;
+            }, 10_000),
+            'latitude and longitude should appear in the top bar',
+        );
+        const center = await readCoords();
+        assert.ok(Math.abs(center.lat - center.z / 1000) < 0.0001, 'latitude should match the block z coordinate');
+        assert.ok(Math.abs(center.lon - center.x / 1000) < 0.0001, 'longitude should match the block x coordinate');
+    });
+
+    it('never sends more than one geo request per second', async function () {
+        await openMap();
+        server.geoRequests.length = 0;
+        const deadline = Date.now() + 5000;
+        while (Date.now() < deadline) {
+            await page.mouse.move(20 + (Date.now() % 300), 20 + ((Date.now() / 2) % 300), { steps: 2 });
+            await new Promise((resolve) => setTimeout(resolve, 100));
+        }
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+        const requests = server.geoRequests;
+        assert.ok(requests.length > 1, 'geo requests should keep flowing while the pointer moves');
+        for (let i = 1; i < requests.length; i++) {
+            assert.ok(
+                requests[i].at - requests[i - 1].at >= 990,
+                `geo requests ${i - 1} and ${i} were only ${requests[i].at - requests[i - 1].at}ms apart`,
+            );
+        }
+    });
+
+    it('keeps the top bar stable while the mouse is idle', async function () {
+        await openMap();
+        const settle = await eventually(async () => {
+            const coords = await readCoords();
+            return coords.lat !== null && coords.lon !== null;
+        }, 10_000);
+        assert.ok(settle, 'geographic coordinates should settle');
+        const text = await page.evaluate(COORDS_TEXT);
+        await new Promise((resolve) => setTimeout(resolve, 3000));
+        const textAfter = await page.evaluate(COORDS_TEXT);
+        assert.equal(textAfter, text);
+    });
+
+    it('shows the map zoom level and updates it when zooming', async function () {
+        await openMap();
+        const initial = await readCoords();
+        assert.equal(initial.zoom, 3);
+        await page.mouse.click(400, 300);
+        await page.keyboard.press('-');
+        assert.ok(
+            await eventually(async () => (await readCoords()).zoom < initial.zoom, 10_000),
+            'zoom level should decrease when zooming out',
+        );
+        const zoomedOut = await readCoords();
+        await page.keyboard.press('+');
+        assert.ok(
+            await eventually(async () => (await readCoords()).zoom > zoomedOut.zoom, 10_000),
+            'zoom level should increase when zooming in',
+        );
+    });
+
+    it('updates the view center coordinates while panning without a pointer', async function () {
+        await openMap();
+        const initial = await readCoords();
+        await page.mouse.move(-10, -10);
+        await page.mouse.move(200, 200);
+        await page.mouse.down();
+        await page.mouse.move(300, 250, { steps: 5 });
+        await page.mouse.up();
+        const after = await readCoords();
+        assert.ok(
+            after.x !== initial.x || after.z !== initial.z,
+            'coordinates should update to the new view center after panning',
         );
     });
 });

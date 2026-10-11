@@ -204,6 +204,24 @@ public final class EarthPreview implements Preview {
         return new double[] {Math.floor(x / CHUNK_SIZE), Math.floor(z / CHUNK_SIZE)};
     }
 
+    /**
+     * Returns the geographic coordinates of the given Minecraft block position.
+     *
+     * @param x the block x coordinate
+     * @param z the block z coordinate
+     * @return a two-element array of the longitude and latitude, in degrees
+     * @throws IllegalArgumentException when the position is outside the projection bounds
+     */
+    @Override
+    public double[] blockToGeo(double x, double z) {
+        GeographicProjection projection = this.settings.projection();
+        try {
+            return projection.toGeo(x, z);
+        } catch (OutOfProjectionBoundsException e) {
+            throw new IllegalArgumentException("Location is outside the projection bounds", e);
+        }
+    }
+
     private double[] geoToChunk(double longitude, double latitude) {
         GeographicProjection projection = this.settings.projection();
         double[] worldPos;
