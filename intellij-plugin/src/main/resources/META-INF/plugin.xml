@@ -10,7 +10,5 @@
         <projectService serviceImplementation="net.smyler.terrapreview.ide.plugin.TerrapreviewService"/>
         <fileEditorProvider
                 implementation="net.smyler.terrapreview.ide.plugin.TerrapreviewSplitEditorProvider"/>
-        <editorNotificationProvider
-                implementation="net.smyler.terrapreview.ide.plugin.TerrapreviewEditorNotificationProvider"/>
     </extensions>
 </idea-plugin>
