@@ -282,13 +282,16 @@ describe('TerraPreview web UI', function () {
         await openMap();
         const icons = await page.evaluate(() => {
             const segments = document.querySelectorAll('#coords-bar .coord-seg');
-            return [...segments].map((segment) => {
-                const svg = segment.querySelector('svg');
-                return svg !== null && svg.getBoundingClientRect().width > 0;
-            });
+            return [...segments].map((segment) => ({
+                visible: segment.querySelector('svg') !== null
+                    && segment.querySelector('svg').getBoundingClientRect().width > 0,
+                paths: [...segment.querySelectorAll('svg > path')].map((path) => path.getAttribute('d')),
+            }));
         });
         assert.equal(icons.length, 4, 'the top bar should have four segments');
-        assert.ok(icons.every((visible) => visible), 'each segment should display an icon');
+        assert.ok(icons.every((icon) => icon.visible), 'each segment should display an icon');
+        const pathSets = icons.map((icon) => icon.paths.join(' '));
+        assert.equal(new Set(pathSets).size, pathSets.length, 'each segment should have a distinct icon');
     });
 
     it('shows the block coordinates of the mouse pointer', async function () {
