@@ -2,6 +2,7 @@ package net.smyler.terrapreview;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
@@ -17,6 +18,7 @@ import org.junit.jupiter.api.io.TempDir;
 class GeneratorSettingsFileTest {
 
     private static final String BTE_SETTINGS = EarthGeneratorSettings.BTE_DEFAULT_SETTINGS;
+    private static final String SETTINGS_FILE_NAME = "default_generator_settings.json5";
 
     @TempDir
     Path temporaryDirectory;
@@ -29,7 +31,7 @@ class GeneratorSettingsFileTest {
 
     @Test
     void fallsBackToTheDefaultSettingsWhenTheFileIsInvalid() throws IOException {
-        this.write("default_generator_settings.json5", "{ not json5 ");
+        this.write(SETTINGS_FILE_NAME, "{ not json5 ");
         EarthGeneratorSettings settings = GeneratorSettingsFile.load(this.temporaryDirectory);
         assertEquals(EarthGeneratorSettings.parseUncached(BTE_SETTINGS).toString(), settings.toString());
     }
@@ -51,6 +53,25 @@ class GeneratorSettingsFileTest {
     void parsesTheJsonFileWhenNoJson5FileExists() throws IOException {
         this.write("default_generator_settings.json", BTE_SETTINGS);
         EarthGeneratorSettings settings = GeneratorSettingsFile.load(this.temporaryDirectory);
+        assertEquals(EarthGeneratorSettings.parseUncached(BTE_SETTINGS).toString(), settings.toString());
+    }
+
+    @Test
+    void tryLoadThrowsOnInvalidSettings() throws IOException {
+        this.write(SETTINGS_FILE_NAME, "{ not json5 ");
+        assertThrows(IllegalArgumentException.class, () -> {
+            try {
+                GeneratorSettingsFile.tryLoad(this.temporaryDirectory);
+            } catch (IOException e) {
+                throw new AssertionError("unexpected IOException", e);
+            }
+        });
+    }
+
+    @Test
+    void tryLoadParsesTheSettingsFile() throws IOException {
+        this.write("default_generator_settings.json", BTE_SETTINGS);
+        EarthGeneratorSettings settings = GeneratorSettingsFile.tryLoad(this.temporaryDirectory);
         assertEquals(EarthGeneratorSettings.parseUncached(BTE_SETTINGS).toString(), settings.toString());
     }
 

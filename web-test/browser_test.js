@@ -187,6 +187,35 @@ describe('TerraPreview web UI', function () {
         }
     });
 
+    it('shows an error banner when the configuration is invalid', async function () {
+        await openMap();
+        assert.equal(
+            await page.evaluate(() => getComputedStyle(document.getElementById('error-banner')).display),
+            'none',
+            'the error banner should be hidden while the configuration is valid',
+        );
+        server.error = 'Could not reload the Terra-- configuration: invalid json';
+        const reloaded = page.waitForFunction(
+            'document.getElementById("error-banner").style.display === "block"',
+            { timeout: 60_000 },
+        );
+        server.publish(42);
+        await reloaded;
+        assert.equal(
+            await page.evaluate(() => document.getElementById('error-banner').textContent),
+            'Could not reload the Terra-- configuration: invalid json',
+        );
+        server.error = null;
+        server.publish(43);
+        assert.ok(
+            await eventually(
+                () => page.evaluate(() => document.getElementById('error-banner').style.display === 'none'),
+                10_000,
+            ),
+            'the error banner should hide again once the configuration is valid',
+        );
+    });
+
     it('restores the view from the URL hash on reload', async function () {
         await openMap();
         await page.mouse.move(-10, -10);
@@ -196,13 +225,18 @@ describe('TerraPreview web UI', function () {
         await page.mouse.up();
         await page.mouse.click(400, 300);
         await page.keyboard.press('-');
+        const initialZoom = await page.evaluate('map.getZoom()');
         await eventually(async () => {
             const state = await page.evaluate(() => ({
                 hash: location.hash,
                 zoom: map.getZoom(),
             }));
             const match = /^#(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)$/.exec(state.hash);
-            return match !== null && Number(match[3]) === state.zoom;
+            return (
+                match !== null
+                && Number(match[3]) === state.zoom
+                && state.zoom < initialZoom
+            );
         }, 10_000);
         const before = await page.evaluate(() => ({
             center: map.getCenter(),

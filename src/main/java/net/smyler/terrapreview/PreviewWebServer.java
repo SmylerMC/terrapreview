@@ -62,6 +62,7 @@ public final class PreviewWebServer {
 
     private final AtomicLong version = new AtomicLong();
     private final Object versionChangeMonitor = new Object();
+    private volatile String error;
     private volatile boolean running;
     private HttpServer server;
 
@@ -116,10 +117,35 @@ public final class PreviewWebServer {
      */
     public void setPreview(Preview preview) {
         this.preview = preview;
+        this.error = null;
         synchronized (this.versionChangeMonitor) {
             this.version.incrementAndGet();
             this.versionChangeMonitor.notifyAll();
         }
+    }
+
+    /**
+     * Reports an error that prevents the preview from being updated, shown to the web UI.
+     *
+     * <p>The previously served preview is kept, so the map stays usable while the error is displayed.
+     *
+     * @param message a human readable description of the error
+     */
+    public void setError(String message) {
+        this.error = message;
+        synchronized (this.versionChangeMonitor) {
+            this.version.incrementAndGet();
+            this.versionChangeMonitor.notifyAll();
+        }
+    }
+
+    /**
+     * Returns the current error message, or null when the preview is up to date.
+     *
+     * @return the current error message, or null
+     */
+    public String error() {
+        return this.error;
     }
 
     /**
@@ -143,6 +169,7 @@ public final class PreviewWebServer {
         this.server.setExecutor(Executors.newCachedThreadPool(
                 Thread.ofPlatform().daemon().name("terrapreview-server-").factory()));
         this.server.createContext("/events", this::serveEvents);
+        this.server.createContext("/error", this::serveError);
         this.server.createContext("/geo", this::serveGeo);
         this.server.createContext("/tiles", this::serveTile);
         this.server.createContext("/", this::servePreview);
@@ -227,6 +254,23 @@ public final class PreviewWebServer {
         }
         byte[] body = ("{\"longitude\":" + geo[0] + ",\"latitude\":" + geo[1] + "}").getBytes(StandardCharsets.UTF_8);
         exchange.getResponseHeaders().set(CONTENT_TYPE_HEADER, "application/json");
+        exchange.sendResponseHeaders(HttpURLConnection.HTTP_OK, body.length);
+        try (OutputStream out = exchange.getResponseBody()) {
+            out.write(body);
+        }
+    }
+
+    private void serveError(HttpExchange exchange) throws IOException {
+        String message = this.error;
+        byte[] body;
+        if (message == null) {
+            body = "null".getBytes(StandardCharsets.UTF_8);
+        } else {
+            String escaped = message.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n");
+            body = ('"' + escaped + '"').getBytes(StandardCharsets.UTF_8);
+        }
+        exchange.getResponseHeaders().set(CONTENT_TYPE_HEADER, "application/json");
+        exchange.getResponseHeaders().set("Cache-Control", "no-store");
         exchange.sendResponseHeaders(HttpURLConnection.HTTP_OK, body.length);
         try (OutputStream out = exchange.getResponseBody()) {
             out.write(body);

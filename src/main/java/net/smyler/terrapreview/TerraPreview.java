@@ -61,19 +61,39 @@ public final class TerraPreview {
         }
         TerraIntegration.setup();
         BlockTextures textures = loadBlockTextures(options.mcVersion());
-        EarthPreview preview = new EarthPreview(Projections.settings(options.projection()), textures);
+        Preview preview;
+        String configurationError = null;
+        try {
+            preview = new EarthPreview(GeneratorSettingsFile.tryLoad(CONFIG_ROOT), textures);
+            // CHECKSTYLE:OFF: IllegalCatch - an invalid user configuration must not prevent the server from starting
+        } catch (IOException | RuntimeException e) {
+            LOGGER.error("The Terra-- configuration is invalid, serving an empty preview", e);
+            preview = new UnavailablePreview();
+            configurationError = e.getMessage();
+            // CHECKSTYLE:ON
+        }
         double[] centerChunk = centerChunkOf(options, preview);
         PreviewWebServer server = new PreviewWebServer(preview, centerChunk, options.port());
         server.start();
+        if (configurationError != null) {
+            server.setError("The Terra-- configuration is invalid: " + configurationError);
+        }
         String previewUrl = "http://localhost:" + server.port() + "/";
         LOGGER.info("TerraPreview web server listening on {}", previewUrl);
         if (shouldOpenBrowser(options)) {
             BrowserOpener.open(previewUrl);
         }
-        LOGGER.info("Using the {} projection", options.projection());
         ConfigWatcher watcher = new ConfigWatcher(CONFIG_ROOT, () -> {
             LOGGER.info("Configuration change detected, updating the rendering engine...");
-            server.setPreview(new EarthPreview(Projections.settings(options.projection()), textures));
+            try {
+                server.setPreview(new EarthPreview(GeneratorSettingsFile.tryLoad(CONFIG_ROOT), textures));
+                LOGGER.info("The rendering engine was updated");
+                // CHECKSTYLE:OFF: IllegalCatch - an invalid user configuration must not kill the watcher
+            } catch (IOException | RuntimeException e) {
+                LOGGER.error("The new configuration is invalid, keeping the previous world", e);
+                server.setError("Could not reload the Terra-- configuration: " + e.getMessage());
+                // CHECKSTYLE:ON
+            }
         });
         watcher.start();
         LOGGER.info("Watching {} for configuration changes", CONFIG_ROOT);
@@ -97,13 +117,16 @@ public final class TerraPreview {
         }
     }
 
-    private static double[] centerChunkOf(CliOptions options, EarthPreview preview) {
+    private static double[] centerChunkOf(CliOptions options, Preview preview) {
         if (options.centerX() != null && options.centerZ() != null) {
             return EarthPreview.centerChunkOfBlock(options.centerX(), options.centerZ());
         }
-        if (options.centerLongitude() != null && options.centerLatitude() != null) {
-            return preview.centerChunk(options.centerLongitude(), options.centerLatitude());
+        if (preview instanceof EarthPreview earthPreview) {
+            if (options.centerLongitude() != null && options.centerLatitude() != null) {
+                return earthPreview.centerChunk(options.centerLongitude(), options.centerLatitude());
+            }
+            return earthPreview.defaultCenterChunk();
         }
-        return preview.defaultCenterChunk();
+        return new double[] {0, 0};
     }
 }
