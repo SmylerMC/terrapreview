@@ -418,6 +418,58 @@ describe('TerraPreview web UI', function () {
         );
     });
 
+    it('shows a loading indicator while tiles load and hides it when done', async function () {
+        server.tileDelayMillis = 1000;
+        await retry(() => page.goto(server.url, { waitUntil: 'domcontentloaded', timeout: 60_000 }), 3);
+        assert.ok(
+            await eventually(
+                () => page.evaluate(() => document.getElementById('loading-indicator').style.display === 'block'),
+                30_000,
+            ),
+            'the loading indicator should be visible while tiles are pending',
+        );
+        assert.ok(
+            await eventually(
+                () => page.evaluate(() => document.getElementById('loading-indicator').style.display === 'none'),
+                30_000,
+            ),
+            'the loading indicator should hide once all tiles have loaded',
+        );
+        assert.ok(
+            await page.$$eval('#map .leaflet-tile-pane img', (tiles) =>
+                tiles.filter((tile) => tile.complete && tile.naturalWidth > 0).length > 0,
+            ),
+            'tiles should be loaded once the loading indicator hides',
+        );
+    });
+
+    it('shows a loading indicator while a geocoding request is pending', async function () {
+        await openMap();
+        assert.ok(
+            await eventually(
+                () => page.evaluate(() => document.getElementById('loading-indicator').style.display === 'none'),
+                30_000,
+            ),
+            'the loading indicator should start hidden once the initial state settles',
+        );
+        server.geoDelayMillis = 1500;
+        await page.mouse.move(300, 300);
+        assert.ok(
+            await eventually(
+                () => page.evaluate(() => document.getElementById('loading-indicator').style.display === 'block'),
+                30_000,
+            ),
+            'the loading indicator should be visible while a geocoding request is pending',
+        );
+        assert.ok(
+            await eventually(
+                () => page.evaluate(() => document.getElementById('loading-indicator').style.display === 'none'),
+                30_000,
+            ),
+            'the loading indicator should hide once the geocoding request completes',
+        );
+    });
+
     it('updates the view center coordinates while panning without a pointer', async function () {
         await openMap();
         const initial = await readCoords();

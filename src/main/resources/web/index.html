@@ -25,6 +25,23 @@ html, body {
     pointer-events: none;
     white-space: nowrap;
 }
+#loading-indicator {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 1000;
+    width: 20px;
+    height: 20px;
+    border: 3px solid rgba(38, 38, 38, 0.8);
+    border-top-color: #eee;
+    border-radius: 50%;
+    animation: loading-spin 0.8s linear infinite;
+    display: none;
+    pointer-events: none;
+}
+@keyframes loading-spin {
+    to { transform: rotate(360deg); }
+}
 #coords-bar svg {
     width: 14px;
     height: 14px;
@@ -106,6 +123,7 @@ html, body {
 <body>
 <div id="map"></div>
 <div id="offline-banner">Server offline &mdash; waiting for it to come back&hellip;</div>
+<div id="loading-indicator"></div>
 <div id="error-banner"></div>
 <div id="coords-bar"><span class="coord-seg"><svg viewBox="0 0 16 16"><path d="M8 1.5 14 4.5v7L8 14.5 2 11.5v-7z"/><path d="M2 4.5 8 7.5l6-3"/><path d="M8 7.5v7"/></svg><span id="block-coords"></span><button class="copy-button" data-copy="block-coords" title="Copy coordinates"><svg viewBox="0 0 16 16"><rect x="5" y="5" width="9" height="9" rx="1"/><path d="M11 5V2.5a.5.5 0 0 0-.5-.5H2.5a.5.5 0 0 0-.5.5v8a.5.5 0 0 0 .5.5H5"/></svg></button></span><span class="coord-seg"><svg viewBox="0 0 16 16"><circle cx="6.5" cy="6.5" r="4.5"/><path d="M10 10l4.5 4.5"/></svg><span id="zoom-coords"></span><button class="copy-button" data-copy="zoom-coords" title="Copy zoom level"><svg viewBox="0 0 16 16"><rect x="5" y="5" width="9" height="9" rx="1"/><path d="M11 5V2.5a.5.5 0 0 0-.5-.5H2.5a.5.5 0 0 0-.5.5v8a.5.5 0 0 0 .5.5H5"/></svg></button></span><span class="coord-seg"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.5"/><ellipse cx="8" cy="8" rx="3" ry="6.5"/><path d="M1.5 8h13"/></svg><span id="geo-coords"></span><button class="copy-button" data-copy="geo-coords" title="Copy coordinates"><svg viewBox="0 0 16 16"><rect x="5" y="5" width="9" height="9" rx="1"/><path d="M11 5V2.5a.5.5 0 0 0-.5-.5H2.5a.5.5 0 0 0-.5.5v8a.5.5 0 0 0 .5.5H5"/></svg></button></span></div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -123,6 +141,12 @@ const map = L.map('map', {
     attributionControl: true,
 });
 let tileVersion = 0;
+const loadingIndicator = document.getElementById('loading-indicator');
+let pendingTiles = 0;
+let pendingGeoRequests = 0;
+const updateLoadingIndicator = () => {
+    loadingIndicator.style.display = pendingTiles + pendingGeoRequests > 0 ? 'block' : 'none';
+};
 const makeTiles = () => {
     const layer = L.gridLayer({
         tileSize: TILE_SIZE,
@@ -132,8 +156,20 @@ const makeTiles = () => {
         keepBuffer: 0,
         updateWhenIdle: true,
     });
-    layer.createTile = (coords) => {
+    layer.createTile = (coords, done) => {
         const tile = document.createElement('img');
+        pendingTiles++;
+        updateLoadingIndicator();
+        tile.onload = () => {
+            pendingTiles--;
+            updateLoadingIndicator();
+            done(null, tile);
+        };
+        tile.onerror = () => {
+            pendingTiles--;
+            updateLoadingIndicator();
+            done('error', tile);
+        };
         tile.src = '/tiles/' + coords.z + '/' + coords.x + '/' + coords.y + '.png?v=' + tileVersion;
         return tile;
     };
@@ -221,11 +257,15 @@ const updateGeo = () => {
     geoLastRequestAt = Date.now();
     const x = geoBlockX;
     const z = geoBlockZ;
+    pendingGeoRequests++;
+    updateLoadingIndicator();
     fetch('/geo/' + x + '/' + z)
         .then((response) => (response.ok ? response.json() : Promise.reject()))
         .then((geo) => renderGeo(geo.latitude.toFixed(4), geo.longitude.toFixed(4)), () =>
             renderGeo(PLACEHOLDER, PLACEHOLDER))
-        .then(() => {
+        .finally(() => {
+            pendingGeoRequests--;
+            updateLoadingIndicator();
             geoBusy = false;
             if (geoStale && (x !== geoBlockX || z !== geoBlockZ)) {
                 updateGeo();
