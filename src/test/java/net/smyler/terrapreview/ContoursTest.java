@@ -16,6 +16,10 @@ class ContoursTest {
 
     private static final int GRID_SIZE = 3;
 
+    private static final int ZONE_GRID_SIZE = 5;
+
+    private static final int ZONE_EDGE = ZONE_GRID_SIZE - 1;
+
     private static final int RGB_MASK = 0xFFFFFF;
 
     private static final Color BACKGROUND = Color.WHITE;
@@ -23,6 +27,10 @@ class ContoursTest {
     private static final Color LINE_COLOR = new Color(0x3B, 0x2A, 0x1A, 0x66);
 
     private static final float FULL_VISIBILITY = 1F;
+
+
+
+
 
     private static final int LOW = 5;
 
