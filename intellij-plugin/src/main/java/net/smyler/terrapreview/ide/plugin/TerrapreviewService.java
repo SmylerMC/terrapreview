@@ -74,7 +74,7 @@ public final class TerrapreviewService implements Disposable {
             this.server.setError(null);
             // CHECKSTYLE:OFF: IllegalCatch - an invalid user configuration must not kill the watcher
         } catch (IOException | RuntimeException e) {
-            LOGGER.error("The new configuration is invalid, keeping the previous world", e);
+            LOGGER.warn("The new configuration is invalid, keeping the previous world", e);
             this.server.setError("Could not reload the Terra-- configuration: " + e.getMessage());
             // CHECKSTYLE:ON
         }
@@ -96,7 +96,7 @@ public final class TerrapreviewService implements Disposable {
                 centerChunk = earthPreview.defaultCenterChunk();
                 // CHECKSTYLE:OFF: IllegalCatch - an invalid user configuration must not prevent the server from starting
             } catch (IOException | RuntimeException e) {
-                LOGGER.error("The Terra-- configuration is invalid, serving an empty preview", e);
+                LOGGER.warn("The Terra-- configuration is invalid, serving an empty preview", e);
                 preview = new UnavailablePreview();
                 centerChunk = new double[] {0, 0};
                 // CHECKSTYLE:ON

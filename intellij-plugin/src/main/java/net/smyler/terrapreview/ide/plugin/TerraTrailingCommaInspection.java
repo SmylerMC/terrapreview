@@ -1,15 +1,16 @@
 package net.smyler.terrapreview.ide.plugin;
 
+import com.intellij.codeInspection.InspectionManager;
 import com.intellij.codeInspection.LocalInspectionTool;
 import com.intellij.codeInspection.LocalQuickFix;
 import com.intellij.codeInspection.ProblemDescriptor;
-import com.intellij.codeInspection.ProblemsHolder;
+import com.intellij.codeInspection.ProblemHighlightType;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.TextRange;
 import com.intellij.psi.PsiDocumentManager;
-import com.intellij.psi.PsiElementVisitor;
 import com.intellij.psi.PsiFile;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * Reports trailing commas in Terra-- JSON5 configuration files.
@@ -23,29 +24,31 @@ public final class TerraTrailingCommaInspection extends LocalInspectionTool {
             "Trailing comma: the Terra-- configuration parser does not support trailing commas";
 
     @Override
-    public @NotNull PsiElementVisitor buildVisitor(@NotNull ProblemsHolder holder, boolean isOnTheFly) {
-        PsiFile file = holder.getFile();
-        if (!TerraConfigurationFileRecognizer.isConfigurationFile(file.getVirtualFile())) {
-            return PsiElementVisitor.EMPTY_VISITOR;
-        }
-        CharSequence contents = file.getViewProvider().getContents();
-        if (contents == null) {
-            return PsiElementVisitor.EMPTY_VISITOR;
-        }
-        String text = contents.toString();
-        if (!text.contains(",")) {
-            return PsiElementVisitor.EMPTY_VISITOR;
-        }
-        for (TerraTrailingCommaScanner.TrailingComma comma : TerraTrailingCommaScanner.scan(text)) {
-            holder.registerProblem(
-                    file, TextRange.create(comma.start(), comma.end()), PROBLEM_DESCRIPTION, new RemoveTrailingCommaFix());
-        }
-        return PsiElementVisitor.EMPTY_VISITOR;
+    public boolean isAvailableForFile(@NotNull PsiFile file) {
+        return TerraConfigurationFileRecognizer.isConfigurationFile(file.getVirtualFile());
     }
 
     @Override
-    public boolean isEnabledByDefault() {
-        return true;
+    public ProblemDescriptor @Nullable [] checkFile(
+            @NotNull PsiFile file, @NotNull InspectionManager manager, boolean isOnTheFly) {
+        CharSequence contents = file.getViewProvider().getContents();
+        if (contents == null) {
+            return null;
+        }
+        String text = contents.toString();
+        if (!text.contains(",")) {
+            return null;
+        }
+        ProblemDescriptor[] descriptors = TerraTrailingCommaScanner.scan(text).stream()
+                .map(comma -> manager.createProblemDescriptor(
+                        file,
+                        TextRange.create(comma.start(), comma.end()),
+                        PROBLEM_DESCRIPTION,
+                        ProblemHighlightType.GENERIC_ERROR_OR_WARNING,
+                        isOnTheFly,
+                        new RemoveTrailingCommaFix()))
+                .toArray(ProblemDescriptor[]::new);
+        return descriptors.length == 0 ? null : descriptors;
     }
 
     /** Removes a trailing comma from the document. */
