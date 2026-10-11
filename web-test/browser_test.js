@@ -589,11 +589,10 @@ describe('TerraPreview web UI', function () {
                         new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }),
                     );
                 }, key);
-            await press('ArrowDown');
             assert.equal(
                 await page.evaluate(() => document.querySelector('#search-results li.selected')?.dataset.lat),
                 '51.5072',
-                'ArrowDown should highlight the first result',
+                'the first result should be highlighted when the results appear',
             );
             await press('ArrowDown');
             assert.equal(
