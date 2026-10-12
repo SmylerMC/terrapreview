@@ -17,7 +17,7 @@ import java.util.List;
  */
 public final class OsmJsonSchemaProviderFactory implements JsonSchemaProviderFactory {
 
-    private static final String SCHEMA_RESOURCE = "/schemas/osm.json";
+    private static final String SCHEMA_RESOURCE = "/net/smyler/terrapreview/osmconfig/osm-schema.json";
     private static final String OSM_CONFIG_FILE_NAME = "osm.json5";
 
     @Override
