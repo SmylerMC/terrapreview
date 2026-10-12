@@ -73,6 +73,21 @@ public final class OsmJsonSchemaValidator {
         return this.check(value, this.schema, "");
     }
 
+    /**
+     * Validates a fragment against one of the schema's definitions, by name.
+     *
+     * @param value the fragment, as produced by {@link DuplicatePreservingJsonReader}
+     * @param defName the name of the definition in {@code $defs} to validate against
+     * @return null when the fragment is valid, otherwise a description of the first violation found
+     */
+    public String validateFragment(DuplicatePreservingJsonReader.Value value, String defName) {
+        Object def = this.defs().get(defName);
+        if (def == null) {
+            throw new IllegalArgumentException("unknown schema definition: " + defName);
+        }
+        return this.check(value, def, "");
+    }
+
     @SuppressWarnings("unchecked")
     private String check(DuplicatePreservingJsonReader.Value value, Object node, String path) {
         node = this.resolve(node);
@@ -104,6 +119,28 @@ public final class OsmJsonSchemaValidator {
             }
             if ("object".equals(type) && value instanceof DuplicatePreservingJsonReader.ObjectValue object) {
                 return this.checkObject(object, schemaObject, path);
+            }
+            if ("array".equals(type) && value instanceof DuplicatePreservingJsonReader.ArrayValue array) {
+                return this.checkArray(array, schemaObject, path);
+            }
+        }
+        return null;
+    }
+
+    private String checkArray(
+            DuplicatePreservingJsonReader.ArrayValue array, Map<String, Object> schemaObject, String path) {
+        Integer minItems = asInteger(schemaObject.get("minItems"));
+        int size = array.elements().size();
+        if (minItems != null && size < minItems) {
+            return path + ": expected at least " + minItems + " element(s), found " + size;
+        }
+        Object items = schemaObject.get("items");
+        if (items instanceof Map) {
+            for (DuplicatePreservingJsonReader.Value element : array.elements()) {
+                String failure = this.check(element, items, path);
+                if (failure != null) {
+                    return failure;
+                }
             }
         }
         return null;
