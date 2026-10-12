@@ -5,10 +5,30 @@
     <description>A live-reloading preview of Terra-- generated worlds, embedded in the IDE.</description>
 
     <depends>com.intellij.modules.platform</depends>
+    <depends>com.intellij.modules.json</depends>
 
     <extensions defaultExtensionNs="com.intellij">
         <projectService serviceImplementation="net.smyler.terrapreview.ide.plugin.TerrapreviewService"/>
         <fileEditorProvider
                 implementation="net.smyler.terrapreview.ide.plugin.TerrapreviewSplitEditorProvider"/>
+        <localInspection
+                language="JSON5"
+                shortName="OsmJsonSemantics"
+                displayName="Terra++ OSM configuration semantics"
+                groupPath="Terra"
+                groupName="Terrapreview"
+                enabledByDefault="true"
+                level="ERROR"
+                implementationClass="net.smyler.terrapreview.ide.plugin.OsmJsonInspection"/>
+        <lang.inspectionSuppressor
+                language="JSON5"
+                implementationClass="net.smyler.terrapreview.ide.plugin.OsmJsonDuplicateKeySuppressor"/>
+        <lang.inspectionSuppressor
+                language="JSON"
+                implementationClass="net.smyler.terrapreview.ide.plugin.OsmJsonDuplicateKeySuppressor"/>
+    </extensions>
+    <extensions defaultExtensionNs="JavaScript">
+        <JsonSchema.ProviderFactory
+                implementation="net.smyler.terrapreview.ide.plugin.OsmJsonSchemaProviderFactory"/>
     </extensions>
 </idea-plugin>

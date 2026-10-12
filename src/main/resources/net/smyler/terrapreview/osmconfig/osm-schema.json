@@ -1,0 +1,279 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://terrapreview.smyler.net/schemas/osm.json5.schema.json",
+    "title": "Terra++ OSM configuration",
+    "description": "Tells Terra++ how to interpret OpenStreetMap elements when generating the world. Every object member names a type and holds that type's fields; member keys may repeat and are consumed in document order (ordered lists). Unions must contain exactly one member; that rule is enforced by Terrapreview's semantic inspection, not by this schema.",
+    "type": "object",
+    "required": ["line", "polygon"],
+    "additionalProperties": false,
+    "properties": {
+        "line": { "$ref": "#/$defs/lineMapper" },
+        "polygon": { "$ref": "#/$defs/polygonMapper" }
+    },
+    "$defs": {
+        "lineMapper": {
+            "description": "A line mapper, or a list of them under all/any/first. Each member names a mapper type (as registered by Terra--'s LineParser) and holds that type's fields.",
+            "type": "object",
+            "minProperties": 1,
+            "additionalProperties": false,
+            "properties": {
+                "all": { "$ref": "#/$defs/lineMapper" },
+                "any": { "$ref": "#/$defs/lineMapper" },
+                "condition": { "$ref": "#/$defs/lineCondition" },
+                "first": { "$ref": "#/$defs/lineMapper" },
+                "nothing": { "$ref": "#/$defs/emptyPayload" },
+                "narrow": { "$ref": "#/$defs/lineDrawFields" },
+                "sharp": { "$ref": "#/$defs/lineDrawFields" },
+                "wide": { "$ref": "#/$defs/wideFields" }
+            }
+        },
+        "polygonMapper": {
+            "description": "A polygon mapper, or a list of them under all/any/first. Each member names a mapper type (as registered by Terra--'s PolygonParser) and holds that type's fields.",
+            "type": "object",
+            "minProperties": 1,
+            "additionalProperties": false,
+            "properties": {
+                "all": { "$ref": "#/$defs/polygonMapper" },
+                "any": { "$ref": "#/$defs/polygonMapper" },
+                "condition": { "$ref": "#/$defs/polygonCondition" },
+                "convert": { "$ref": "#/$defs/convertFields" },
+                "first": { "$ref": "#/$defs/polygonMapper" },
+                "nothing": { "$ref": "#/$defs/emptyPayload" },
+                "distance": { "$ref": "#/$defs/distanceFields" },
+                "fill": { "$ref": "#/$defs/lineDrawFields" }
+            }
+        },
+        "lineCondition": {
+            "description": "Applies the emit mapper when the match condition matches (Terra--'s Condition.Line).",
+            "type": "object",
+            "required": ["match", "emit"],
+            "additionalProperties": false,
+            "properties": {
+                "match": { "$ref": "#/$defs/matchCondition" },
+                "emit": { "$ref": "#/$defs/lineMapper" }
+            }
+        },
+        "polygonCondition": {
+            "description": "Applies the emit mapper when the match condition matches (Terra--'s Condition.Polygon).",
+            "type": "object",
+            "required": ["match", "emit"],
+            "additionalProperties": false,
+            "properties": {
+                "match": { "$ref": "#/$defs/matchCondition" },
+                "emit": { "$ref": "#/$defs/polygonMapper" }
+            }
+        },
+        "convertFields": {
+            "description": "Converts the polygon outline to a line and applies the line mapper to it (Terra--'s PolygonConvert).",
+            "type": "object",
+            "required": ["line"],
+            "additionalProperties": false,
+            "properties": {
+                "line": { "$ref": "#/$defs/lineMapper" }
+            }
+        },
+        "matchCondition": {
+            "description": "A match condition, or a list of them under and/or. Each member names a condition type (as registered by Terra--'s MatchParser) and holds that type's fields.",
+            "type": "object",
+            "minProperties": 1,
+            "additionalProperties": false,
+            "properties": {
+                "and": { "$ref": "#/$defs/matchCondition" },
+                "or": { "$ref": "#/$defs/matchCondition" },
+                "not": { "$ref": "#/$defs/matchCondition" },
+                "tag": { "$ref": "#/$defs/tagMatch" },
+                "id": { "$ref": "#/$defs/idMatch" },
+                "intersects": { "$ref": "#/$defs/boundsMatch" }
+            }
+        },
+        "tagMatch": {
+            "description": "Matches a single OSM tag (Terra--'s match Tag): the member key is the tag key, the value is null (key present), a string (exact value) or an array of strings (any of the values).",
+            "type": "object",
+            "minProperties": 1,
+            "maxProperties": 1,
+            "additionalProperties": {
+                "oneOf": [
+                    { "type": "null" },
+                    { "type": "string" },
+                    { "type": "array", "items": { "type": "string" }, "minItems": 1 }
+                ]
+            }
+        },
+        "idMatch": {
+            "description": "Matches the OSM element id (Terra--'s match Id): a single id, or an array of ids of which any may match.",
+            "oneOf": [
+                { "type": "string" },
+                { "type": "array", "items": { "type": "string" }, "minItems": 1 }
+            ]
+        },
+        "boundsMatch": {
+            "description": "Matches when the element's original geometry bounds intersect this bounding box (Terra--'s match Intersects).",
+            "type": "object",
+            "required": ["minX", "maxX", "minZ", "maxZ"],
+            "additionalProperties": false,
+            "properties": {
+                "minX": { "description": "Minimum X coordinate.", "type": "number" },
+                "maxX": { "description": "Maximum X coordinate.", "type": "number" },
+                "minZ": { "description": "Minimum Z coordinate.", "type": "number" },
+                "maxZ": { "description": "Maximum Z coordinate.", "type": "number" }
+            }
+        },
+        "dValue": {
+            "description": "A numeric expression evaluated against the element's tags (Terra--'s DValueParser). Each member names an expression type and holds that type's fields.",
+            "type": "object",
+            "minProperties": 1,
+            "additionalProperties": false,
+            "properties": {
+                "constant": { "description": "A constant number.", "type": "number" },
+                "tag": { "$ref": "#/$defs/tagValue" },
+                "+": { "$ref": "#/$defs/binaryOperands" },
+                "-": { "$ref": "#/$defs/binaryOperands" },
+                "*": { "$ref": "#/$defs/binaryOperands" },
+                "/": { "$ref": "#/$defs/binaryOperands" },
+                "floor_div": { "$ref": "#/$defs/binaryOperands" },
+                "min": { "$ref": "#/$defs/binaryOperands" },
+                "max": { "$ref": "#/$defs/binaryOperands" }
+            }
+        },
+        "binaryOperands": {
+            "description": "The two operands of a binary DValue operation, in document order (Terra--'s BiOp reads exactly two members). Each member names an expression type and holds that type's fields.",
+            "type": "object",
+            "minProperties": 2,
+            "maxProperties": 2,
+            "additionalProperties": false,
+            "properties": {
+                "constant": { "description": "A constant number.", "type": "number" },
+                "tag": { "$ref": "#/$defs/tagValue" },
+                "+": { "$ref": "#/$defs/binaryOperands" },
+                "-": { "$ref": "#/$defs/binaryOperands" },
+                "*": { "$ref": "#/$defs/binaryOperands" },
+                "/": { "$ref": "#/$defs/binaryOperands" },
+                "floor_div": { "$ref": "#/$defs/binaryOperands" },
+                "min": { "$ref": "#/$defs/binaryOperands" },
+                "max": { "$ref": "#/$defs/binaryOperands" }
+            }
+        },
+        "tagValue": {
+            "description": "The numeric value of an OSM tag (Terra--'s dvalue Tag).",
+            "type": "object",
+            "required": ["key", "fallback"],
+            "additionalProperties": false,
+            "properties": {
+                "key": { "description": "The tag key to read.", "type": "string" },
+                "fallback": { "description": "Used when the tag is missing or not a number.", "type": "number" }
+            }
+        },
+        "drawFunction": {
+            "description": "A function that draws into a column (Terra--'s DrawFunctionParser). Each member names a draw type and holds that type's fields.",
+            "type": "object",
+            "minProperties": 1,
+            "additionalProperties": false,
+            "properties": {
+                "all": { "$ref": "#/$defs/drawFunction" },
+                "block": { "$ref": "#/$defs/blockState" },
+                "no_trees": { "$ref": "#/$defs/emptyPayload" },
+                "ocean": { "$ref": "#/$defs/emptyPayload" },
+                "water": { "$ref": "#/$defs/emptyPayload" },
+                "weight_add": { "$ref": "#/$defs/weightAddFields" },
+                "weight_clamp": { "$ref": "#/$defs/weightClampFields" },
+                "weight_greater_than": { "$ref": "#/$defs/weightThresholdFields" },
+                "weight_less_than": { "$ref": "#/$defs/weightThresholdFields" }
+            }
+        },
+        "lineDrawFields": {
+            "description": "The fields of the narrow, sharp and fill mappers.",
+            "type": "object",
+            "required": ["draw", "layer"],
+            "additionalProperties": false,
+            "properties": {
+                "draw": { "$ref": "#/$defs/drawFunction" },
+                "layer": { "$ref": "#/$defs/dValue" }
+            }
+        },
+        "wideFields": {
+            "description": "The fields of the wide mapper.",
+            "type": "object",
+            "required": ["draw", "layer", "radius"],
+            "additionalProperties": false,
+            "properties": {
+                "draw": { "$ref": "#/$defs/drawFunction" },
+                "layer": { "$ref": "#/$defs/dValue" },
+                "radius": { "$ref": "#/$defs/dValue" }
+            }
+        },
+        "distanceFields": {
+            "description": "The fields of the distance mapper.",
+            "type": "object",
+            "required": ["draw", "layer"],
+            "additionalProperties": false,
+            "properties": {
+                "draw": { "$ref": "#/$defs/drawFunction" },
+                "layer": { "$ref": "#/$defs/dValue" },
+                "maxDist": {
+                    "description": "Maximum distance (in blocks) from the polygon boundary to draw into. Defaults to 2.",
+                    "type": "integer"
+                }
+            }
+        },
+        "blockState": {
+            "description": "A Minecraft block state (Terra--'s BlockStateParser).",
+            "type": "object",
+            "required": ["id"],
+            "additionalProperties": false,
+            "properties": {
+                "id": {
+                    "description": "The block identifier, e.g. \"minecraft:gray_concrete\".",
+                    "type": "string",
+                    "examples": ["minecraft:gray_concrete", "minecraft:dirt_path", "minecraft:bricks"]
+                },
+                "properties": {
+                    "description": "Block state properties.",
+                    "type": "object",
+                    "additionalProperties": {
+                        "oneOf": [
+                            { "type": "string" },
+                            { "type": "integer" },
+                            { "type": "boolean" }
+                        ]
+                    }
+                }
+            }
+        },
+        "weightAddFields": {
+            "description": "The fields of the weight_add draw function.",
+            "type": "object",
+            "required": ["delegate", "value"],
+            "additionalProperties": false,
+            "properties": {
+                "delegate": { "$ref": "#/$defs/drawFunction" },
+                "value": { "description": "Offset added to the column weight.", "type": "integer" }
+            }
+        },
+        "weightClampFields": {
+            "description": "The fields of the weight_clamp draw function.",
+            "type": "object",
+            "required": ["delegate"],
+            "additionalProperties": false,
+            "properties": {
+                "delegate": { "$ref": "#/$defs/drawFunction" },
+                "min": { "description": "Lower bound. Defaults to the minimum integer.", "type": "integer" },
+                "max": { "description": "Upper bound. Defaults to the maximum integer.", "type": "integer" }
+            }
+        },
+        "weightThresholdFields": {
+            "description": "The fields of the weight_greater_than and weight_less_than draw functions.",
+            "type": "object",
+            "required": ["delegate", "value"],
+            "additionalProperties": false,
+            "properties": {
+                "delegate": { "$ref": "#/$defs/drawFunction" },
+                "value": { "description": "Weight threshold.", "type": "integer" }
+            }
+        },
+        "emptyPayload": {
+            "description": "A type that takes no fields, like nothing, no_trees, ocean and water.",
+            "type": "object",
+            "maxProperties": 0
+        }
+    }
+}
