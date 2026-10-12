@@ -13,10 +13,16 @@ import java.util.Set;
  */
 public final class OsmConfigRules {
 
+    private static final String ALL = "all";
+    private static final String ANY = "any";
+    private static final String FIRST = "first";
+    private static final String UNKNOWN = "unknown ";
+    private static final String TYPE_SUFFIX = " type: ";
+
     public static final Set<String> LINE_MAPPERS = Set.of(
-            "all", "any", "condition", "first", "nothing", "narrow", "sharp", "wide");
+            ALL, ANY, "condition", FIRST, "nothing", "narrow", "sharp", "wide");
     public static final Set<String> POLYGON_MAPPERS = Set.of(
-            "all", "any", "condition", "convert", "first", "nothing", "distance", "fill");
+            ALL, ANY, "condition", "convert", FIRST, "nothing", "distance", "fill");
     public static final Set<String> MATCH_CONDITIONS = Set.of(
             "and", "or", "not", "tag", "id", "intersects");
     public static final Set<String> DRAW_FUNCTIONS = Set.of(
@@ -50,7 +56,7 @@ public final class OsmConfigRules {
             case "draw", "delegate" -> Rule.union(DRAW_FUNCTIONS, null, "draw function");
             case "layer", "radius" -> Rule.union(DVALUE_TYPES, null, "DValue");
             case "and", "or" -> Rule.list(MATCH_CONDITIONS, "match condition");
-            case "all", "any", "first" -> isDrawContext(parentPropertyNames)
+            case ALL, ANY, FIRST -> isDrawContext(parentPropertyNames)
                     ? Rule.list(DRAW_FUNCTIONS, "draw function")
                     : Rule.list(union(LINE_MAPPERS, POLYGON_MAPPERS), "mapper");
             default -> BINARY_DVALUE_OPS.contains(propertyName)
@@ -74,7 +80,10 @@ public final class OsmConfigRules {
      */
     public interface Rule {
         /**
-         * Returns the problem with the given member names of an object under this rule, or null if they are valid.
+         * Checks the given member names of an object under this rule.
+         *
+         * @param memberNames the names of the object's members, in document order
+         * @return a problem message, or null if the members are valid
          */
         String check(List<String> memberNames);
 
@@ -93,7 +102,7 @@ public final class OsmConfigRules {
                 }
                 String type = memberNames.get(0);
                 if (!types.contains(type) && (moreTypes == null || !moreTypes.contains(type))) {
-                    return "unknown " + what + " type: " + type;
+                    return UNKNOWN + what + TYPE_SUFFIX + type;
                 }
                 return null;
             };
@@ -113,7 +122,7 @@ public final class OsmConfigRules {
                 }
                 for (String name : memberNames) {
                     if (!childTypes.contains(name)) {
-                        return "unknown " + what + " type: " + name;
+                        return UNKNOWN + what + TYPE_SUFFIX + name;
                     }
                 }
                 return null;
@@ -134,7 +143,7 @@ public final class OsmConfigRules {
                 }
                 for (String name : memberNames) {
                     if (!operandTypes.contains(name)) {
-                        return "unknown " + what + " type: " + name;
+                        return UNKNOWN + what + TYPE_SUFFIX + name;
                     }
                 }
                 return null;

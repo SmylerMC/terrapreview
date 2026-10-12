@@ -14,6 +14,35 @@ class OsmConfigRulesTest {
 
     private static final List<String> NO_PARENTS = List.of();
 
+    private static final String LINE = "line";
+    private static final String POLYGON = "polygon";
+    private static final String EMIT = "emit";
+    private static final String MATCH = "match";
+    private static final String DRAW = "draw";
+    private static final String DELEGATE = "delegate";
+    private static final String LAYER = "layer";
+    private static final String RADIUS = "radius";
+    private static final String AND = "and";
+    private static final String OR = "or";
+    private static final String ALL = "all";
+    private static final String FIRST = "first";
+    private static final String CONDITION = "condition";
+    private static final String NARROW = "narrow";
+    private static final String WIDE = "wide";
+    private static final String FILL = "fill";
+    private static final String TAG = "tag";
+    private static final String NOT = "not";
+    private static final String CONSTANT = "constant";
+    private static final String ADD = "+";
+    private static final String WATER = "water";
+    private static final String NO_TREES = "no_trees";
+    private static final String BLOCK = "block";
+    private static final String DISTANCE = "distance";
+    private static final String CONVERT = "convert";
+    private static final String FLOOR_DIV = "floor_div";
+    private static final String MULTIPLY = "*";
+    private static final String MAX = "max";
+
     @Test
     void rootHasNoRule() {
         assertNull(OsmConfigRules.check("unknown", NO_PARENTS, List.of("anything")));
@@ -21,125 +50,125 @@ class OsmConfigRulesTest {
 
     @Test
     void mapperUnionAcceptsKnownLineType() {
-        assertNull(OsmConfigRules.check("line", NO_PARENTS, List.of("first")));
-        assertNull(OsmConfigRules.check("line", NO_PARENTS, List.of("wide")));
-        assertNull(OsmConfigRules.check("polygon", NO_PARENTS, List.of("distance")));
+        assertNull(OsmConfigRules.check(LINE, NO_PARENTS, List.of(FIRST)));
+        assertNull(OsmConfigRules.check(LINE, NO_PARENTS, List.of(WIDE)));
+        assertNull(OsmConfigRules.check(POLYGON, NO_PARENTS, List.of(DISTANCE)));
     }
 
     @Test
     void mapperUnionRejectsUnknownType() {
         assertEquals("unknown mapper type: wat",
-                OsmConfigRules.check("line", NO_PARENTS, List.of("wat")));
+                OsmConfigRules.check(LINE, NO_PARENTS, List.of("wat")));
     }
 
     @Test
     void emitAcceptsBothLineAndPolygonTypes() {
-        assertNull(OsmConfigRules.check("emit", NO_PARENTS, List.of("narrow")));
-        assertNull(OsmConfigRules.check("emit", NO_PARENTS, List.of("fill")));
+        assertNull(OsmConfigRules.check(EMIT, NO_PARENTS, List.of(NARROW)));
+        assertNull(OsmConfigRules.check(EMIT, NO_PARENTS, List.of(FILL)));
     }
 
     @Test
     void unionMustHaveExactlyOneMember() {
         assertEquals("a mapper must contain exactly one member naming its type, found 2",
-                OsmConfigRules.check("line", NO_PARENTS, List.of("first", "wide")));
+                OsmConfigRules.check(LINE, NO_PARENTS, List.of(FIRST, WIDE)));
         assertEquals("a match condition must contain exactly one member naming its type, found 0",
-                OsmConfigRules.check("match", NO_PARENTS, List.of()));
+                OsmConfigRules.check(MATCH, NO_PARENTS, List.of()));
     }
 
     @Test
     void matchUnionAcceptsKnownTypes() {
         for (String type : OsmConfigRules.MATCH_CONDITIONS) {
-            assertNull(OsmConfigRules.check("match", NO_PARENTS, List.of(type)), type);
+            assertNull(OsmConfigRules.check(MATCH, NO_PARENTS, List.of(type)), type);
         }
     }
 
     @Test
     void matchUnionRejectsMapperType() {
         assertEquals("unknown match condition type: wide",
-                OsmConfigRules.check("match", NO_PARENTS, List.of("wide")));
+                OsmConfigRules.check(MATCH, NO_PARENTS, List.of(WIDE)));
     }
 
     @Test
     void drawUnionAcceptsKnownTypes() {
         for (String type : OsmConfigRules.DRAW_FUNCTIONS) {
-            assertNull(OsmConfigRules.check("draw", NO_PARENTS, List.of(type)), type);
-            assertNull(OsmConfigRules.check("delegate", NO_PARENTS, List.of(type)), type);
+            assertNull(OsmConfigRules.check(DRAW, NO_PARENTS, List.of(type)), type);
+            assertNull(OsmConfigRules.check(DELEGATE, NO_PARENTS, List.of(type)), type);
         }
     }
 
     @Test
     void dvalueUnionAcceptsKnownTypes() {
         for (String type : OsmConfigRules.DVALUE_TYPES) {
-            assertNull(OsmConfigRules.check("layer", NO_PARENTS, List.of(type)), type);
-            assertNull(OsmConfigRules.check("radius", NO_PARENTS, List.of(type)), type);
+            assertNull(OsmConfigRules.check(LAYER, NO_PARENTS, List.of(type)), type);
+            assertNull(OsmConfigRules.check(RADIUS, NO_PARENTS, List.of(type)), type);
         }
     }
 
     @Test
     void andOrAreMatchLists() {
-        assertNull(OsmConfigRules.check("and", NO_PARENTS, List.of("tag", "not", "tag")));
+        assertNull(OsmConfigRules.check(AND, NO_PARENTS, List.of(TAG, NOT, TAG)));
         assertEquals("unknown match condition type: wide",
-                OsmConfigRules.check("or", NO_PARENTS, List.of("wide")));
+                OsmConfigRules.check(OR, NO_PARENTS, List.of(WIDE)));
         assertEquals("at least one match condition member is required",
-                OsmConfigRules.check("and", NO_PARENTS, List.of()));
+                OsmConfigRules.check(AND, NO_PARENTS, List.of()));
     }
 
     @Test
     void firstAllAnyAreMapperLists() {
-        assertNull(OsmConfigRules.check("first", NO_PARENTS, List.of("condition", "condition", "wide", "narrow")));
+        assertNull(OsmConfigRules.check(FIRST, NO_PARENTS, List.of(CONDITION, CONDITION, WIDE, NARROW)));
         assertEquals("unknown mapper type: river",
-                OsmConfigRules.check("first", NO_PARENTS, List.of("river")));
+                OsmConfigRules.check(FIRST, NO_PARENTS, List.of("river")));
         assertEquals("at least one mapper member is required",
-                OsmConfigRules.check("all", NO_PARENTS, List.of()));
+                OsmConfigRules.check(ALL, NO_PARENTS, List.of()));
     }
 
     @Test
     void firstInsideDrawIsADrawFunctionList() {
-        assertNull(OsmConfigRules.check("all", List.of("draw"), List.of("no_trees", "block")));
+        assertNull(OsmConfigRules.check(ALL, List.of(DRAW), List.of(NO_TREES, BLOCK)));
         assertEquals("unknown draw function type: condition",
-                OsmConfigRules.check("all", List.of("draw"), List.of("condition")));
+                OsmConfigRules.check(ALL, List.of(DRAW), List.of(CONDITION)));
     }
 
     @Test
     void firstInsideDelegateIsADrawFunctionList() {
-        assertNull(OsmConfigRules.check("first", List.of("delegate"), List.of("water")));
+        assertNull(OsmConfigRules.check(FIRST, List.of(DELEGATE), List.of(WATER)));
         assertEquals("unknown draw function type: narrow",
-                OsmConfigRules.check("first", List.of("delegate"), List.of("narrow")));
+                OsmConfigRules.check(FIRST, List.of(DELEGATE), List.of(NARROW)));
     }
 
     @Test
     void firstInsideNestedDrawContextIsADrawFunctionList() {
         // all > weight_greater_than > delegate > all
-        assertNull(OsmConfigRules.check("all", List.of("delegate", "weight_greater_than", "all", "draw"), List.of("water")));
+        assertNull(OsmConfigRules.check(ALL, List.of(DELEGATE, "weight_greater_than", ALL, DRAW), List.of(WATER)));
     }
 
     @Test
     void binaryOperatorsTakeExactlyTwoOperands() {
-        assertNull(OsmConfigRules.check("+", NO_PARENTS, List.of("constant", "tag")));
-        assertNull(OsmConfigRules.check("floor_div", NO_PARENTS, List.of("*", "+")));
+        assertNull(OsmConfigRules.check(ADD, NO_PARENTS, List.of(CONSTANT, TAG)));
+        assertNull(OsmConfigRules.check(FLOOR_DIV, NO_PARENTS, List.of(MULTIPLY, ADD)));
         assertEquals("binary DValue operators take exactly two operands, found 1",
-                OsmConfigRules.check("+", NO_PARENTS, List.of("constant")));
+                OsmConfigRules.check(ADD, NO_PARENTS, List.of(CONSTANT)));
         assertEquals("binary DValue operators take exactly two operands, found 3",
-                OsmConfigRules.check("max", NO_PARENTS, List.of("constant", "constant", "constant")));
+                OsmConfigRules.check(MAX, NO_PARENTS, List.of(CONSTANT, CONSTANT, CONSTANT)));
     }
 
     @Test
     void binaryOperandsMustBeDValues() {
         assertEquals("unknown DValue type: wide",
-                OsmConfigRules.check("+", NO_PARENTS, List.of("constant", "wide")));
+                OsmConfigRules.check(ADD, NO_PARENTS, List.of(CONSTANT, WIDE)));
     }
 
     @Test
     void binaryOperandsAreDValueUnions() {
         // the operands of a binary op are DValue unions: a single "tag" member is valid
-        assertNull(OsmConfigRules.check("tag", NO_PARENTS, List.of("key", "fallback")));
+        assertNull(OsmConfigRules.check(TAG, NO_PARENTS, List.of("key", "fallback")));
     }
 
     @Test
     void lineInsideConvertIsALineMapperOnly() {
-        assertNull(OsmConfigRules.check("line", List.of("convert"), List.of("narrow")));
+        assertNull(OsmConfigRules.check(LINE, List.of(CONVERT), List.of(NARROW)));
         assertEquals("unknown line mapper type: fill",
-                OsmConfigRules.check("line", List.of("convert"), List.of("fill")));
+                OsmConfigRules.check(LINE, List.of(CONVERT), List.of(FILL)));
     }
 
     @Test
@@ -152,6 +181,6 @@ class OsmConfigRulesTest {
         // "all" whose nearest enclosing property is "layer" is not a draw context,
         // so its members are mappers, not draw functions
         assertEquals("unknown mapper type: tag",
-                OsmConfigRules.check("all", List.of("layer"), List.of("tag")));
+                OsmConfigRules.check(ALL, List.of(LAYER), List.of(TAG)));
     }
 }
