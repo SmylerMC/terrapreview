@@ -19,23 +19,27 @@ public final class OsmConfigRules {
     private static final String UNKNOWN = "unknown ";
     private static final String TYPE_SUFFIX = " type: ";
 
-    public static final Set<String> LINE_MAPPERS = Set.of(
-            ALL, ANY, "condition", FIRST, "nothing", "narrow", "sharp", "wide");
-    public static final Set<String> POLYGON_MAPPERS = Set.of(
-            ALL, ANY, "condition", "convert", FIRST, "nothing", "distance", "fill");
-    public static final Set<String> MATCH_CONDITIONS = Set.of(
-            "and", "or", "not", "tag", "id", "intersects");
+    public static final Set<String> LINE_MAPPERS =
+            Set.of(ALL, ANY, "condition", FIRST, "nothing", "narrow", "sharp", "wide");
+    public static final Set<String> POLYGON_MAPPERS =
+            Set.of(ALL, ANY, "condition", "convert", FIRST, "nothing", "distance", "fill");
+    public static final Set<String> MATCH_CONDITIONS = Set.of("and", "or", "not", "tag", "id", "intersects");
     public static final Set<String> DRAW_FUNCTIONS = Set.of(
-            "all", "block", "no_trees", "ocean", "water",
-            "weight_add", "weight_clamp", "weight_greater_than", "weight_less_than");
-    public static final Set<String> DVALUE_TYPES = Set.of(
-            "constant", "tag", "+", "-", "*", "/", "floor_div", "min", "max");
-    public static final Set<String> BINARY_DVALUE_OPS = Set.of(
-            "+", "-", "*", "/", "floor_div", "min", "max");
+            "all",
+            "block",
+            "no_trees",
+            "ocean",
+            "water",
+            "weight_add",
+            "weight_clamp",
+            "weight_greater_than",
+            "weight_less_than");
+    public static final Set<String> DVALUE_TYPES =
+            Set.of("constant", "tag", "+", "-", "*", "/", "floor_div", "min", "max");
+    public static final Set<String> BINARY_DVALUE_OPS = Set.of("+", "-", "*", "/", "floor_div", "min", "max");
     private static final Set<String> DRAW_CONTEXTS = Set.of("draw", "delegate");
 
-    private OsmConfigRules() {
-    }
+    private OsmConfigRules() {}
 
     /**
      * Returns the rule that applies to the object that is the value of the given property, or {@code null}
@@ -46,8 +50,10 @@ public final class OsmConfigRules {
      * @return the applicable rule, or null
      */
     public static Rule ruleFor(String propertyName, List<String> parentPropertyNames) {
-        if ("line".equals(propertyName) && parentPropertyNames != null
-                && !parentPropertyNames.isEmpty() && "convert".equals(parentPropertyNames.get(0))) {
+        if ("line".equals(propertyName)
+                && parentPropertyNames != null
+                && !parentPropertyNames.isEmpty()
+                && "convert".equals(parentPropertyNames.get(0))) {
             return Rule.union(LINE_MAPPERS, null, "line mapper");
         }
         return switch (propertyName) {
@@ -56,23 +62,23 @@ public final class OsmConfigRules {
             case "draw", "delegate" -> Rule.union(DRAW_FUNCTIONS, null, "draw function");
             case "layer", "radius" -> Rule.union(DVALUE_TYPES, null, "DValue");
             case "and", "or" -> Rule.list(MATCH_CONDITIONS, "match condition");
-            case ALL, ANY, FIRST -> isDrawContext(parentPropertyNames)
-                    ? Rule.list(DRAW_FUNCTIONS, "draw function")
-                    : Rule.list(union(LINE_MAPPERS, POLYGON_MAPPERS), "mapper");
-            default -> BINARY_DVALUE_OPS.contains(propertyName)
-                    ? Rule.binaryOperands(DVALUE_TYPES, "DValue")
-                    : null;
+            case ALL, ANY, FIRST ->
+                isDrawContext(parentPropertyNames)
+                        ? Rule.list(DRAW_FUNCTIONS, "draw function")
+                        : Rule.list(union(LINE_MAPPERS, POLYGON_MAPPERS), "mapper");
+            default -> BINARY_DVALUE_OPS.contains(propertyName) ? Rule.binaryOperands(DVALUE_TYPES, "DValue") : null;
         };
     }
 
     private static boolean isDrawContext(List<String> parentPropertyNames) {
-        return parentPropertyNames != null && !parentPropertyNames.isEmpty()
+        return parentPropertyNames != null
+                && !parentPropertyNames.isEmpty()
                 && DRAW_CONTEXTS.contains(parentPropertyNames.get(0));
     }
 
     private static Set<String> union(Set<String> first, Set<String> second) {
-        return Set.of(java.util.stream.Stream.concat(first.stream(), second.stream())
-                .toArray(String[]::new));
+        return java.util.stream.Stream.concat(first.stream(), second.stream())
+                .collect(java.util.stream.Collectors.toUnmodifiableSet());
     }
 
     /**
@@ -98,7 +104,8 @@ public final class OsmConfigRules {
         static Rule union(Set<String> types, Set<String> moreTypes, String what) {
             return memberNames -> {
                 if (memberNames.size() != 1) {
-                    return "a " + what + " must contain exactly one member naming its type, found " + memberNames.size();
+                    return "a " + what + " must contain exactly one member naming its type, found "
+                            + memberNames.size();
                 }
                 String type = memberNames.get(0);
                 if (!types.contains(type) && (moreTypes == null || !moreTypes.contains(type))) {

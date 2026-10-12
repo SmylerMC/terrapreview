@@ -17,6 +17,7 @@ repositories {
 dependencies {
     intellijPlatform {
         intellijIdeaCommunity("2025.2")
+        bundledPlugin("com.intellij.modules.json")
     }
     implementation(project(":"))
 }

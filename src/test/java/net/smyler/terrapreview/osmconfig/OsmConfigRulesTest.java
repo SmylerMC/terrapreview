@@ -1,11 +1,10 @@
 package net.smyler.terrapreview.osmconfig;
 
-import org.junit.jupiter.api.Test;
-
-import java.util.List;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+
+import java.util.List;
+import org.junit.jupiter.api.Test;
 
 /**
  * Tests for {@link OsmConfigRules}, the semantic rules of the Terra++ osm.json5 format.
@@ -57,8 +56,7 @@ class OsmConfigRulesTest {
 
     @Test
     void mapperUnionRejectsUnknownType() {
-        assertEquals("unknown mapper type: wat",
-                OsmConfigRules.check(LINE, NO_PARENTS, List.of("wat")));
+        assertEquals("unknown mapper type: wat", OsmConfigRules.check(LINE, NO_PARENTS, List.of("wat")));
     }
 
     @Test
@@ -69,9 +67,11 @@ class OsmConfigRulesTest {
 
     @Test
     void unionMustHaveExactlyOneMember() {
-        assertEquals("a mapper must contain exactly one member naming its type, found 2",
+        assertEquals(
+                "a mapper must contain exactly one member naming its type, found 2",
                 OsmConfigRules.check(LINE, NO_PARENTS, List.of(FIRST, WIDE)));
-        assertEquals("a match condition must contain exactly one member naming its type, found 0",
+        assertEquals(
+                "a match condition must contain exactly one member naming its type, found 0",
                 OsmConfigRules.check(MATCH, NO_PARENTS, List.of()));
     }
 
@@ -84,8 +84,7 @@ class OsmConfigRulesTest {
 
     @Test
     void matchUnionRejectsMapperType() {
-        assertEquals("unknown match condition type: wide",
-                OsmConfigRules.check(MATCH, NO_PARENTS, List.of(WIDE)));
+        assertEquals("unknown match condition type: wide", OsmConfigRules.check(MATCH, NO_PARENTS, List.of(WIDE)));
     }
 
     @Test
@@ -107,33 +106,30 @@ class OsmConfigRulesTest {
     @Test
     void andOrAreMatchLists() {
         assertNull(OsmConfigRules.check(AND, NO_PARENTS, List.of(TAG, NOT, TAG)));
-        assertEquals("unknown match condition type: wide",
-                OsmConfigRules.check(OR, NO_PARENTS, List.of(WIDE)));
-        assertEquals("at least one match condition member is required",
-                OsmConfigRules.check(AND, NO_PARENTS, List.of()));
+        assertEquals("unknown match condition type: wide", OsmConfigRules.check(OR, NO_PARENTS, List.of(WIDE)));
+        assertEquals(
+                "at least one match condition member is required", OsmConfigRules.check(AND, NO_PARENTS, List.of()));
     }
 
     @Test
     void firstAllAnyAreMapperLists() {
         assertNull(OsmConfigRules.check(FIRST, NO_PARENTS, List.of(CONDITION, CONDITION, WIDE, NARROW)));
-        assertEquals("unknown mapper type: river",
-                OsmConfigRules.check(FIRST, NO_PARENTS, List.of("river")));
-        assertEquals("at least one mapper member is required",
-                OsmConfigRules.check(ALL, NO_PARENTS, List.of()));
+        assertEquals("unknown mapper type: river", OsmConfigRules.check(FIRST, NO_PARENTS, List.of("river")));
+        assertEquals("at least one mapper member is required", OsmConfigRules.check(ALL, NO_PARENTS, List.of()));
     }
 
     @Test
     void firstInsideDrawIsADrawFunctionList() {
         assertNull(OsmConfigRules.check(ALL, List.of(DRAW), List.of(NO_TREES, BLOCK)));
-        assertEquals("unknown draw function type: condition",
-                OsmConfigRules.check(ALL, List.of(DRAW), List.of(CONDITION)));
+        assertEquals(
+                "unknown draw function type: condition", OsmConfigRules.check(ALL, List.of(DRAW), List.of(CONDITION)));
     }
 
     @Test
     void firstInsideDelegateIsADrawFunctionList() {
         assertNull(OsmConfigRules.check(FIRST, List.of(DELEGATE), List.of(WATER)));
-        assertEquals("unknown draw function type: narrow",
-                OsmConfigRules.check(FIRST, List.of(DELEGATE), List.of(NARROW)));
+        assertEquals(
+                "unknown draw function type: narrow", OsmConfigRules.check(FIRST, List.of(DELEGATE), List.of(NARROW)));
     }
 
     @Test
@@ -146,16 +142,17 @@ class OsmConfigRulesTest {
     void binaryOperatorsTakeExactlyTwoOperands() {
         assertNull(OsmConfigRules.check(ADD, NO_PARENTS, List.of(CONSTANT, TAG)));
         assertNull(OsmConfigRules.check(FLOOR_DIV, NO_PARENTS, List.of(MULTIPLY, ADD)));
-        assertEquals("binary DValue operators take exactly two operands, found 1",
+        assertEquals(
+                "binary DValue operators take exactly two operands, found 1",
                 OsmConfigRules.check(ADD, NO_PARENTS, List.of(CONSTANT)));
-        assertEquals("binary DValue operators take exactly two operands, found 3",
+        assertEquals(
+                "binary DValue operators take exactly two operands, found 3",
                 OsmConfigRules.check(MAX, NO_PARENTS, List.of(CONSTANT, CONSTANT, CONSTANT)));
     }
 
     @Test
     void binaryOperandsMustBeDValues() {
-        assertEquals("unknown DValue type: wide",
-                OsmConfigRules.check(ADD, NO_PARENTS, List.of(CONSTANT, WIDE)));
+        assertEquals("unknown DValue type: wide", OsmConfigRules.check(ADD, NO_PARENTS, List.of(CONSTANT, WIDE)));
     }
 
     @Test
@@ -167,8 +164,7 @@ class OsmConfigRulesTest {
     @Test
     void lineInsideConvertIsALineMapperOnly() {
         assertNull(OsmConfigRules.check(LINE, List.of(CONVERT), List.of(NARROW)));
-        assertEquals("unknown line mapper type: fill",
-                OsmConfigRules.check(LINE, List.of(CONVERT), List.of(FILL)));
+        assertEquals("unknown line mapper type: fill", OsmConfigRules.check(LINE, List.of(CONVERT), List.of(FILL)));
     }
 
     @Test
@@ -180,7 +176,6 @@ class OsmConfigRulesTest {
     void drawContextDetectionOnlyLooksAtNearestParent() {
         // "all" whose nearest enclosing property is "layer" is not a draw context,
         // so its members are mappers, not draw functions
-        assertEquals("unknown mapper type: tag",
-                OsmConfigRules.check(ALL, List.of(LAYER), List.of(TAG)));
+        assertEquals("unknown mapper type: tag", OsmConfigRules.check(ALL, List.of(LAYER), List.of(TAG)));
     }
 }
