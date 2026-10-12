@@ -28,7 +28,7 @@
                 implementationClass="net.smyler.terrapreview.ide.plugin.OsmJsonDuplicateKeySuppressor"/>
     </extensions>
     <extensions defaultExtensionNs="JavaScript">
-        <JavaScript.JsonSchema.ProviderFactory
+        <JsonSchema.ProviderFactory
                 implementation="net.smyler.terrapreview.ide.plugin.OsmJsonSchemaProviderFactory"/>
     </extensions>
 </idea-plugin>
